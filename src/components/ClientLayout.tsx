@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
 import SuppliersPage from "./SuppliersPage";
+import PurchaseOrdersPage from "./PurchaseOrdersPage";
 import { ToastContainer, useToast } from "./Toast";
 
 const NAV_ITEMS = [
@@ -28,7 +29,6 @@ const ROLE_COLORS: Record<string, string> = {
   READONLY: "#64748B",
 };
 
-// Notification messages keyed by the ?notify= param value
 const NOTIFY_MESSAGES: Record<
   string,
   { message: string; type: "info" | "success" | "warning" }
@@ -49,32 +49,26 @@ export default function ClientLayout({
   const searchParams = useSearchParams();
   const { toasts, show, dismiss } = useToast();
 
-  // ── Derive view from URL ────────────────────────────────────────────────────
   const currentPage = searchParams.get("page") ?? "dashboard";
   const customerDetailId = searchParams.get("id") ?? null;
   const notifyKey = searchParams.get("notify") ?? null;
 
-  // ── Handle ?notify= param: show toast then strip it from URL ───────────────
   useEffect(() => {
     if (!notifyKey) return;
     const n = NOTIFY_MESSAGES[notifyKey];
     if (n) show(n.message, n.type);
-
-    // Remove ?notify= from the URL without adding a history entry
     const clean = new URLSearchParams(searchParams.toString());
     clean.delete("notify");
     const qs = clean.toString();
     router.replace(qs ? `/?${qs}` : "/");
   }, [notifyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === "unauthenticated" && pathname !== "/login") {
       router.replace("/login");
     }
   }, [status, pathname, router]);
 
-  // ── Navigate: push real history entries ────────────────────────────────────
   function navigate(page: string, id?: string) {
     const p = new URLSearchParams();
     p.set("page", page);
@@ -82,7 +76,6 @@ export default function ClientLayout({
     router.push(`/?${p.toString()}`);
   }
 
-  // ── Early returns ───────────────────────────────────────────────────────────
   if (pathname === "/login") return <>{children}</>;
 
   if (status === "loading")
@@ -121,7 +114,6 @@ export default function ClientLayout({
   const roleColor = ROLE_COLORS[userRole] ?? "#64748B";
   const initials = session.user.name?.slice(0, 2).toUpperCase() ?? "?";
 
-  // ── Page renderer ───────────────────────────────────────────────────────────
   const renderPage = () => {
     switch (currentPage) {
       case "customers":
@@ -136,6 +128,8 @@ export default function ClientLayout({
         return <CustomersPage onNavigate={(id) => navigate("customers", id)} />;
       case "suppliers":
         return <SuppliersPage />;
+      case "po":
+        return <PurchaseOrdersPage />;
       default:
         return (
           <div
@@ -158,7 +152,7 @@ export default function ClientLayout({
   return (
     <>
       <div className="layout-shell">
-        {/* ── Sidebar ── */}
+        {/* Sidebar */}
         <aside className={`layout-sidebar ${sidebarOpen ? "open" : "closed"}`}>
           <div
             className="sidebar-brand"
@@ -213,7 +207,7 @@ export default function ClientLayout({
           </div>
         </aside>
 
-        {/* ── Main ── */}
+        {/* Main */}
         <div className="layout-main">
           <header className="layout-topbar">
             <div className="topbar-breadcrumb">
@@ -249,7 +243,6 @@ export default function ClientLayout({
         </div>
       </div>
 
-      {/* Toast notifications — rendered outside layout flow */}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </>
   );
