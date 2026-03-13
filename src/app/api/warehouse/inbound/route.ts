@@ -1,6 +1,6 @@
-// src/app/api/warehouse/writeoff/route.ts
-// GET  /api/warehouse/writeoff?branchId=&page=&limit=
-// POST /api/warehouse/writeoff — create WO, decrement fullQty from WarehouseStock
+// src/app/api/warehouse/inbound/route.ts
+// GET  /api/warehouse/inbound?branchId=&page=&limit=
+// POST /api/warehouse/inbound — create GR, bump WarehouseStock.fullQty, update PO receivedQty
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -19,15 +19,15 @@ export async function GET(req: NextRequest) {
   const where = { ...(branchId && { branchId }) };
 
   const [total, rows] = await Promise.all([
-    prisma.cylinderWriteoff.count({ where }),
-    prisma.cylinderWriteoff.findMany({
+    prisma.inboundReceiving.count({ where }),
+    prisma.inboundReceiving.findMany({
       where,
       include: {
         branch: { select: { id: true, code: true, name: true } },
-        createdBy: { select: { id: true, name: true } },
-        approvedBy: { select: { id: true, name: true } },
+        supplierPo: { select: { id: true, poNumber: true } },
+        receivedBy: { select: { id: true, name: true } },
       },
-      orderBy: { writeoffDate: "desc" },
+      orderBy: { receivedDate: "desc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -45,31 +45,27 @@ export async function POST(req: NextRequest) {
   const errors: Record<string, string> = {};
 
   if (!body.branchId) errors.branchId = "Branch is required.";
-  if (!body.writeoffNumber)
-    errors.writeoffNumber = "Write-off number is required.";
-  if (!body.writeoffDate) errors.writeoffDate = "Date is required.";
+  if (!body.supplierPoId) errors.supplierPoId = "PO is required.";
+  if (!body.grNumber) errors.grNumber = "GR number is required.";
+  if (!body.receivedDate) errors.receivedDate = "Date is required.";
   if (!body.cylinderSize) errors.cylinderSize = "Cylinder size is required.";
-  if (!body.qty || body.qty < 1) errors.qty = "Qty must be ≥ 1.";
-  if (!body.reason) errors.reason = "Reason is required.";
-
-  const VALID_REASONS = [
-    "RUSAK_BERAT",
-    "HILANG",
-    "KADALUARSA_UJI",
-    "BOCOR_PARAH",
-  ];
-  if (body.reason && !VALID_REASONS.includes(body.reason))
-    errors.reason = `Must be one of: ${VALID_REASONS.join(", ")}`;
+  if (!body.receivedQty || body.receivedQty < 1)
+    errors.receivedQty = "Received qty must be ≥ 1.";
+  if (body.goodQty === undefined || body.goodQty === null || body.goodQty < 0)
+    errors.goodQty = "Good qty is required.";
+  if (Number(body.goodQty) > Number(body.receivedQty))
+    errors.goodQty = "Good qty cannot exceed received qty.";
 
   if (Object.keys(errors).length > 0)
     return NextResponse.json({ errors }, { status: 422 });
 
-  const dup = await prisma.cylinderWriteoff.findUnique({
-    where: { writeoffNumber: body.writeoffNumber },
+  // Duplicate GR number check
+  const dup = await prisma.inboundReceiving.findUnique({
+    where: { grNumber: body.grNumber },
   });
   if (dup)
     return NextResponse.json(
-      { error: "Write-off number already exists." },
+      { error: "GR number already exists." },
       { status: 409 },
     );
 
@@ -81,35 +77,40 @@ export async function POST(req: NextRequest) {
   if (!dbUser)
     return NextResponse.json({ error: "User not found." }, { status: 401 });
 
-  const writeoffDate = new Date(body.writeoffDate + "T00:00:00.000Z");
-  const qty = Number(body.qty);
+  const receivedDate = new Date(body.receivedDate + "T00:00:00.000Z");
+  const receivedQty = Number(body.receivedQty);
+  const goodQty = Number(body.goodQty);
+  const rejectQty = receivedQty - goodQty;
 
   const result = await prisma.$transaction(async (tx) => {
-    // 1. Create write-off record
-    const wo = await tx.cylinderWriteoff.create({
+    // 1. Create GR record
+    const gr = await tx.inboundReceiving.create({
       data: {
         branchId: body.branchId,
-        writeoffNumber: body.writeoffNumber,
-        writeoffDate,
+        supplierPoId: body.supplierPoId,
+        grNumber: body.grNumber,
+        receivedDate,
         cylinderSize: body.cylinderSize,
-        qty,
-        reason: body.reason,
+        receivedQty,
+        goodQty,
+        rejectQty,
         notes: body.notes ?? null,
-        createdById: dbUser.id,
+        receivedById: dbUser.id,
       },
       include: {
         branch: { select: { id: true, code: true, name: true } },
-        createdBy: { select: { id: true, name: true } },
+        supplierPo: { select: { id: true, poNumber: true } },
+        receivedBy: { select: { id: true, name: true } },
       },
     });
 
-    // 2. Decrement fullQty in WarehouseStock
+    // 2. Upsert WarehouseStock — add goodQty to fullQty for today
     const existing = await tx.warehouseStock.findUnique({
       where: {
         branchId_cylinderSize_stockDate: {
           branchId: body.branchId,
           cylinderSize: body.cylinderSize,
-          stockDate: writeoffDate,
+          stockDate: receivedDate,
         },
       },
     });
@@ -117,9 +118,10 @@ export async function POST(req: NextRequest) {
     if (existing) {
       await tx.warehouseStock.update({
         where: { id: existing.id },
-        data: { fullQty: Math.max(0, existing.fullQty - qty) },
+        data: { fullQty: existing.fullQty + goodQty },
       });
     } else {
+      // Carry forward latest snapshot
       const latest = await tx.warehouseStock.findFirst({
         where: { branchId: body.branchId, cylinderSize: body.cylinderSize },
         orderBy: { stockDate: "desc" },
@@ -128,15 +130,30 @@ export async function POST(req: NextRequest) {
         data: {
           branchId: body.branchId,
           cylinderSize: body.cylinderSize,
-          stockDate: writeoffDate,
-          fullQty: Math.max(0, (latest?.fullQty ?? 0) - qty),
+          stockDate: receivedDate,
+          fullQty: (latest?.fullQty ?? 0) + goodQty,
           emptyQty: latest?.emptyQty ?? 0,
           onTransitQty: latest?.onTransitQty ?? 0,
         },
       });
     }
 
-    return wo;
+    // 3. Update PO receivedQty — increment
+    const po = await tx.supplierPo.findUnique({
+      where: { id: body.supplierPoId },
+      select: { receivedQty: true, orderedQty: true },
+    });
+    if (po) {
+      const newReceived = (po.receivedQty ?? 0) + goodQty;
+      const newStatus =
+        newReceived >= po.orderedQty ? "COMPLETED" : "PARTIALLY_RECEIVED";
+      await tx.supplierPo.update({
+        where: { id: body.supplierPoId },
+        data: { receivedQty: newReceived, status: newStatus },
+      });
+    }
+
+    return gr;
   });
 
   return NextResponse.json(result, { status: 201 });
