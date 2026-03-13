@@ -1,11 +1,14 @@
 "use client";
 
+// src/components/ClientLayout.tsx
+
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
 import SuppliersPage from "./SuppliersPage";
+import WarehousePage from "./WarehousePage";
 // import PurchaseOrdersPage from "./PurchaseOrdersPage";
 // import DeliveryOrdersPage from "./DeliveryOrdersPage";
 import { ToastContainer, useToast } from "./Toast";
@@ -43,6 +46,10 @@ export default function ClientLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeBranchId, setActiveBranchId] = useState<string>("");
+  const [branches, setBranches] = useState<
+    { id: string; code: string; name: string }[]
+  >([]);
 
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -54,6 +61,20 @@ export default function ClientLayout({
   const customerDetailId = searchParams.get("id") ?? null;
   const notifyKey = searchParams.get("notify") ?? null;
 
+  // ── Load branches once so we can populate the topbar switcher ────────────
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((data: { id: string; code: string; name: string }[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setBranches(data);
+          setActiveBranchId(data[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Notification toast from URL param ─────────────────────────────────────
   useEffect(() => {
     if (!notifyKey) return;
     const n = NOTIFY_MESSAGES[notifyKey];
@@ -64,6 +85,7 @@ export default function ClientLayout({
     router.replace(qs ? `/?${qs}` : "/");
   }, [notifyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === "unauthenticated" && pathname !== "/login") {
       router.replace("/login");
@@ -115,6 +137,7 @@ export default function ClientLayout({
   const roleColor = ROLE_COLORS[userRole] ?? "#64748B";
   const initials = session.user.name?.slice(0, 2).toUpperCase() ?? "?";
 
+  // ── Page renderer ─────────────────────────────────────────────────────────
   const renderPage = () => {
     switch (currentPage) {
       case "customers":
@@ -127,13 +150,19 @@ export default function ClientLayout({
           );
         }
         return <CustomersPage onNavigate={(id) => navigate("customers", id)} />;
+
       case "suppliers":
         return <SuppliersPage />;
 
+      case "warehouse":
+        return <WarehousePage activeBranchId={activeBranchId} />;
+
       // case "po":
       //   return <PurchaseOrdersPage />;
+
       // case "delivery":
       //   return <DeliveryOrdersPage />;
+
       default:
         return (
           <div
@@ -153,11 +182,13 @@ export default function ClientLayout({
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="layout-shell">
-        {/* Sidebar */}
+        {/* ── Sidebar ── */}
         <aside className={`layout-sidebar ${sidebarOpen ? "open" : "closed"}`}>
+          {/* Brand / toggle */}
           <div
             className="sidebar-brand"
             onClick={() => setSidebarOpen((o) => !o)}
@@ -171,6 +202,7 @@ export default function ClientLayout({
             )}
           </div>
 
+          {/* Nav items */}
           <nav className="sidebar-nav">
             {NAV_ITEMS.map(({ key, label, icon }) => (
               <button
@@ -185,6 +217,7 @@ export default function ClientLayout({
             ))}
           </nav>
 
+          {/* User + sign out */}
           <div className="sidebar-footer">
             {sidebarOpen && (
               <>
@@ -211,8 +244,9 @@ export default function ClientLayout({
           </div>
         </aside>
 
-        {/* Main */}
+        {/* ── Main area ── */}
         <div className="layout-main">
+          {/* Topbar */}
           <header className="layout-topbar">
             <div className="topbar-breadcrumb">
               <span>SSG</span>
@@ -234,15 +268,31 @@ export default function ClientLayout({
                 </>
               )}
             </div>
+
+            {/* Branch switcher — drives activeBranchId for WarehousePage etc. */}
             <div className="topbar-branch">
               <span className="topbar-branch-label">Branch:</span>
-              <select defaultValue="SBY">
-                <option value="SBY">Surabaya</option>
-                <option value="YOG">Yogyakarta</option>
+              <select
+                value={activeBranchId}
+                onChange={(e) => setActiveBranchId(e.target.value)}
+              >
+                {branches.length > 0 ? (
+                  branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="SBY">Surabaya</option>
+                    <option value="YOG">Yogyakarta</option>
+                  </>
+                )}
               </select>
             </div>
           </header>
 
+          {/* Page content */}
           <main className="layout-content">{renderPage()}</main>
         </div>
       </div>
