@@ -7,6 +7,7 @@ import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
 import SuppliersPage from "./SuppliersPage";
 import PurchaseOrdersPage from "./PurchaseOrdersPage";
+import DeliveryOrdersPage from "./DeliveryOrdersPage";
 import { ToastContainer, useToast } from "./Toast";
 
 const NAV_ITEMS = [
@@ -130,6 +131,8 @@ export default function ClientLayout({
         return <SuppliersPage />;
       case "po":
         return <PurchaseOrdersPage />;
+      case "delivery":
+        return <DeliveryOrdersPage />;
       default:
         return (
           <div
