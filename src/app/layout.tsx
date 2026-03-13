@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import "./globals.css";
-import { SessionProvider } from "next-auth/react";
+import NextAuthProvider from "@/components/NextAuthProvider";
 import ClientLayout from "@/components/ClientLayout";
 
 export default function RootLayout({
@@ -14,10 +14,9 @@ export default function RootLayout({
         <title>SSG Gas Distribution Admin</title>
       </head>
       <body>
-        {/* SessionProvider must wrap the client layout */}
-        <SessionProvider>
+        <NextAuthProvider>
           <ClientLayout>{children}</ClientLayout>
-        </SessionProvider>
+        </NextAuthProvider>
       </body>
     </html>
   );

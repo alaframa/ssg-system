@@ -1,10 +1,18 @@
-import prisma from "./lib/prisma";
+import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcrypt";
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const hashed = await bcrypt.hash("admin123", 10);
-  await prisma.user.create({
-    data: {
+
+  await prisma.user.upsert({
+    where: { email: "admin@ssg.com" },
+    update: {},
+    create: {
       email: "admin@ssg.com",
       name: "Super Admin",
       hashedPassword: hashed,
@@ -13,19 +21,9 @@ async function main() {
     },
   });
 
-  const hashedBranchMgr = await bcrypt.hash("branch123", 10);
-  await prisma.user.create({
-    data: {
-      email: "manager.sby@ssg.com",
-      name: "Branch Manager SBY",
-      hashedPassword: hashedBranchMgr,
-      role: "BRANCH_MANAGER",
-      branchId: "SBY_ID", // replace with real branch ID from seed
-      isActive: true,
-    },
-  });
+  console.log("✅ Seed complete: admin@ssg.com / admin123");
 }
 
 main()
-  .catch((e) => console.error(e))
+  .catch((e) => { console.error(e); process.exit(1); })
   .finally(() => prisma.$disconnect());
