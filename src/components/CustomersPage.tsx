@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import AddEditCustomerModal from "./AddEditCustomerModal";
+import ImportCustomersModal from "./ImportCustomersModal";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface Branch {
   id: string;
   code: string;
@@ -28,13 +29,11 @@ interface ApiResponse {
   totalPages: number;
 }
 
-// ─── Type colours (light-theme palette) ──────────────────────────────────────
 const TYPE_LABELS: Record<string, string> = {
   RETAIL: "Retail",
   AGEN: "Agen",
   INDUSTRI: "Industri",
 };
-
 const TYPE_COLORS: Record<
   string,
   { text: string; bg: string; border: string }
@@ -55,7 +54,6 @@ const TYPE_COLORS: Record<
     border: "rgba(124,58,237,0.2)",
   },
 };
-
 const fmtIDR = (val: string) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -63,7 +61,6 @@ const fmtIDR = (val: string) =>
     maximumFractionDigits: 0,
   }).format(Number(val));
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function CustomersPage({
   onNavigate,
 }: {
@@ -78,6 +75,8 @@ export default function CustomersPage({
   const [page, setPage] = useState(1);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -88,7 +87,7 @@ export default function CustomersPage({
   }, []);
 
   const fetchCustomers = useCallback(
-    async (params: {
+    async (p: {
       search: string;
       branch: string;
       status: string;
@@ -97,16 +96,9 @@ export default function CustomersPage({
     }) => {
       setLoading(true);
       try {
-        const q = new URLSearchParams({
-          search: params.search,
-          branch: params.branch,
-          status: params.status,
-          type: params.type,
-          page: String(params.page),
-        });
+        const q = new URLSearchParams({ ...p, page: String(p.page) });
         const res = await fetch(`/api/customers?${q}`);
-        const json = await res.json();
-        setData(json);
+        setData(await res.json());
       } catch {
         setData(null);
       } finally {
@@ -131,6 +123,8 @@ export default function CustomersPage({
     fetchCustomers({ search, branch, status, type, page });
   }, [page]);
 
+  const refresh = () => fetchCustomers({ search, branch, status, type, page });
+
   return (
     <div className="cust-wrap">
       {/* Header */}
@@ -144,11 +138,30 @@ export default function CustomersPage({
           <div className="cust-title">Customers</div>
           <div className="cust-subtitle">Manage · Search · Filter</div>
         </div>
-        {data && (
-          <div className="cust-count-badge">
-            {data.total.toLocaleString()} Total Customers
-          </div>
-        )}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          {data && (
+            <div className="cust-count-badge">
+              {data.total.toLocaleString()} Total Customers
+            </div>
+          )}
+          <button
+            className="btn-gho"
+            style={{ fontSize: 12 }}
+            onClick={() => setShowImport(true)}
+          >
+            📥 Import Excel
+          </button>
+          <button className="btn-pri" onClick={() => setShowAdd(true)}>
+            + Add Customer
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -301,7 +314,6 @@ export default function CustomersPage({
           </tbody>
         </table>
 
-        {/* Pagination */}
         {data && data.totalPages > 1 && (
           <div className="pagination">
             <div className="pag-info">
@@ -340,8 +352,9 @@ export default function CustomersPage({
         )}
       </div>
 
-      {/* Detail Drawer */}
+      {/* Detail Drawer (only when no onNavigate) */}
       {selected &&
+        !onNavigate &&
         (() => {
           const c = data?.customers.find((x) => x.id === selected);
           if (!c) return null;
@@ -370,7 +383,6 @@ export default function CustomersPage({
                         color: "#64748B",
                         marginTop: 3,
                         fontFamily: "var(--font-mono)",
-                        letterSpacing: "0.04em",
                       }}
                     >
                       {c.code}
@@ -383,7 +395,6 @@ export default function CustomersPage({
                     ✕
                   </button>
                 </div>
-
                 <div className="drawer-section">
                   <div className="drawer-section-label">Identity</div>
                   <div className="drawer-row">
@@ -420,7 +431,6 @@ export default function CustomersPage({
                     </span>
                   </div>
                 </div>
-
                 <div className="drawer-section">
                   <div className="drawer-section-label">Contact</div>
                   <div className="drawer-row">
@@ -438,7 +448,6 @@ export default function CustomersPage({
                     </span>
                   </div>
                 </div>
-
                 <div className="drawer-section">
                   <div className="drawer-section-label">Financial</div>
                   <div className="drawer-row">
@@ -448,7 +457,6 @@ export default function CustomersPage({
                     </span>
                   </div>
                 </div>
-
                 <div className="drawer-section">
                   <div className="drawer-section-label">Meta</div>
                   <div className="drawer-row">
@@ -466,6 +474,27 @@ export default function CustomersPage({
             </>
           );
         })()}
+
+      {/* Modals */}
+      {showAdd && (
+        <AddEditCustomerModal
+          branches={branches}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => {
+            setShowAdd(false);
+            refresh();
+          }}
+        />
+      )}
+      {showImport && (
+        <ImportCustomersModal
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

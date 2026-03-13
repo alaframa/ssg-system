@@ -7,16 +7,16 @@
 
 /* ── Design Tokens ─────────────────────────────────────────── */
 :root {
-  --bg:             #F3F4F6;
+  --bg:             lightgray;
   --sidebar:        #1E293B;
   --sidebar-hover:  #0F172A;
-  --card:           #FFFFFF;
+  --card:           lightgray;
   --border:         #E5E7EB;
   --border-muted:   #F1F3F5;
 
   --text-hi:        #111827;
-  --text-mid:       #64748B;
-  --text-low:       #9CA3AF;
+  --text-mid:       #101216;
+  --text-low:       #131518;
 
   --accent:         #2563EB;
   --accent-bg:      rgba(37,99,235,0.08);
