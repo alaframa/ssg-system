@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSG Dashboard - Canvas Edition</title>
+    <style>
+        body { margin: 0; background-color: #0d1117; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        canvas { border-radius: 4px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+    <canvas id="ssgCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('ssgCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1200;
+        canvas.height = 700;
+
+        const colors = {
+            bg: '#161b22',       // Main background from your image
+            sidebar: '#1f212e',  // Sidebar depth
+            accent: '#d4af37',   // Gold/Yellow accent
+            textDim: '#8b949e',  // Muted gray for headers
+            cyan: '#58a6ff',     // Type labels
+            success: '#3fb950',  // Active status green
+            border: '#30363d'    // Subtle line dividers
+        };
+
+        function drawDashboard() {
+            // 1. MAIN BACKGROUND
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. SIDEBAR MOCKUP
+            ctx.fillStyle = colors.sidebar;
+            ctx.fillRect(0, 0, 220, canvas.height);
+            
+            // Branding (Top Left)
+            ctx.fillStyle = colors.accent;
+            ctx.font = "bold 18px sans-serif";
+            ctx.fillText("SSG Admin", 25, 40);
+            ctx.fillStyle = colors.textDim;
+            ctx.font = "10px sans-serif";
+            ctx.fillText("GAS DISTRIBUTION", 25, 55);
+
+            // Menu Items (Simulating your layout)
+            const menu = ["Dashboard", "Customers", "Suppliers", "Purchase Orders"];
+            menu.forEach((item, i) => {
+                ctx.fillStyle = (i === 0) ? colors.accent : colors.textDim;
+                ctx.font = "14px sans-serif";
+                ctx.fillText(item, 45, 110 + (i * 45));
+                // Small indicator for active
+                if(i === 0) {
+                    ctx.fillRect(0, 93, 4, 25);
+                }
+            });
+
+            // 3. HEADER AREA
+            ctx.fillStyle = colors.textDim;
+            ctx.font = "12px monospace";
+            ctx.fillText("SSG > DASHBOARD", 250, 40);
+
+            // 4. MAIN TITLE
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 28px sans-serif";
+            ctx.fillText("Dashboard Overview", 250, 95);
+
+            // 5. TREND CHART (Simulated Canvas Art)
+            ctx.strokeStyle = colors.cyan;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(280, 450);
+            ctx.bezierCurveTo(400, 400, 500, 550, 650, 420);
+            ctx.bezierCurveTo(800, 300, 950, 480, 1100, 350);
+            ctx.stroke();
+            
+            // Chart Fill
+            ctx.lineTo(1100, 550);
+            ctx.lineTo(280, 550);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(88, 166, 255, 0.1)';
+            ctx.fill();
+
+            // 6. METRIC CARDS (Matching your table style)
+            const metrics = [
+                { label: "Total Sales", val: "Rp 128.5M", sub: "+12% this month" },
+                { label: "Active Cylinders", val: "1,402", sub: "85% utilization" }
+            ];
+
+            metrics.forEach((m, i) => {
+                const x = 250 + (i * 450);
+                const y = 140;
+                ctx.fillStyle = colors.sidebar;
+                ctx.beginPath();
+                ctx.roundRect(x, y, 400, 120, 8);
+                ctx.fill();
+                ctx.strokeStyle = colors.border;
+                ctx.stroke();
+
+                ctx.fillStyle = colors.textDim;
+                ctx.font = "12px sans-serif";
+                ctx.fillText(m.label, x + 25, y + 35);
+
+                ctx.fillStyle = colors.accent;
+                ctx.font = "bold 32px monospace";
+                ctx.fillText(m.val, x + 25, y + 80);
+
+                ctx.fillStyle = colors.success;
+                ctx.font = "11px sans-serif";
+                ctx.fillText(m.sub, x + 270, y + 35);
+            });
+
+            // 7. ACCOUNT BOX (Bottom Left)
+            ctx.fillStyle = colors.border;
+            ctx.roundRect(15, 610, 190, 60, 10);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 12px sans-serif";
+            ctx.fillText("Super Admin", 30, 635);
+            ctx.fillStyle = colors.accent;
+            ctx.font = "10px sans-serif";
+            ctx.fillText("SUPER ADMIN", 30, 652);
+        }
+
+        // RoundRect Polyfill for browser compatibility
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                this.closePath();
+                return this;
+            };
+        }
+
+        drawDashboard();
+    </script>
+</body>
+</html>
