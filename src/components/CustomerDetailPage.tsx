@@ -377,7 +377,12 @@ export default function CustomerDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  // Live cylinder holdings state (refreshable independently)
+  const [holdings, setHoldings] = useState<CylinderHolding[]>([]);
+  const [holdLoading, setHoldLoading] = useState(false);
+  const [holdLastFetch, setHoldLastFetch] = useState<Date | null>(null);
 
+  // Fetch customer profile
   useEffect(() => {
     setLoading(true);
     setError("");
@@ -386,10 +391,30 @@ export default function CustomerDetailPage({
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then(setCustomer)
+      .then((data) => {
+        setCustomer(data);
+        // Seed holdings from the embedded relation first (instant display)
+        setHoldings(data.cylinderHoldings ?? []);
+        setHoldLastFetch(new Date());
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [customerId]);
+
+  // Refresh holdings independently from the live endpoint
+  async function refreshHoldings() {
+    setHoldLoading(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/cylinder-holdings`);
+      const data = await res.json();
+      setHoldings(data);
+      setHoldLastFetch(new Date());
+      // Also patch customer stats
+      setCustomer((c) => (c ? { ...c, cylinderHoldings: data } : c));
+    } finally {
+      setHoldLoading(false);
+    }
+  }
 
   if (loading)
     return (
@@ -427,15 +452,12 @@ export default function CustomerDetailPage({
     );
 
   const tm = TYPE_META[customer.customerType];
-  const sortedHold = [...customer.cylinderHoldings].sort(
+  const sortedHold = [...holdings].sort(
     (a, b) =>
       CYL_ORDER.indexOf(a.cylinderSize) - CYL_ORDER.indexOf(b.cylinderSize),
   );
-  const totalHeld = customer.cylinderHoldings.reduce(
-    (s, h) => s + h.heldQty,
-    0,
-  );
-  const totalDeposit = customer.cylinderHoldings.reduce(
+  const totalHeld = holdings.reduce((s, h) => s + h.heldQty, 0);
+  const totalDeposit = holdings.reduce(
     (s, h) => s + Number(h.depositPerUnit) * h.heldQty,
     0,
   );
@@ -618,25 +640,72 @@ export default function CustomerDetailPage({
           <Field label="Last Updated">{fmtDateTime(customer.updatedAt)}</Field>
         </Card>
 
-        {/* Cylinder Holdings */}
+        {/* Cylinder Holdings — live balance */}
         <div className="cd-cyl">
           <div className="cd-card-hd">
             <span className="cd-card-ic">🛢️</span>
             <span className="cd-card-tl">
               Cylinder Holdings (Tabung Dipegang)
             </span>
-            {totalHeld > 0 && (
-              <span
+            <span
+              style={{
+                marginLeft: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              {holdLastFetch && (
+                <span
+                  style={{ fontSize: 9, color: "#9CA3AF", fontStyle: "italic" }}
+                >
+                  Updated{" "}
+                  {holdLastFetch.toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+              )}
+              <button
+                onClick={refreshHoldings}
+                disabled={holdLoading}
+                title="Refresh live balance"
                 style={{
-                  marginLeft: "auto",
                   fontSize: 11,
-                  color: "#15803D",
                   fontWeight: 600,
+                  color: holdLoading ? "#9CA3AF" : "#2563EB",
+                  background: holdLoading
+                    ? "transparent"
+                    : "rgba(37,99,235,0.07)",
+                  border: `1px solid ${holdLoading ? "#E5E7EB" : "rgba(37,99,235,0.2)"}`,
+                  borderRadius: 6,
+                  padding: "3px 10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  transition: "all 0.12s",
                 }}
               >
-                {totalHeld} tabung · {fmtIDR(totalDeposit)}
-              </span>
-            )}
+                <span
+                  style={{
+                    display: "inline-block",
+                    animation: holdLoading ? "spin 1s linear infinite" : "none",
+                  }}
+                >
+                  ⟳
+                </span>
+                {holdLoading ? "Refreshing…" : "Refresh"}
+              </button>
+              {totalHeld > 0 && (
+                <span
+                  style={{ fontSize: 11, color: "#15803D", fontWeight: 700 }}
+                >
+                  {totalHeld} tbg · {fmtIDR(totalDeposit)}
+                </span>
+              )}
+            </span>
           </div>
           {sortedHold.length === 0 ? (
             <div className="cd-cyl-empty">
@@ -655,6 +724,7 @@ export default function CustomerDetailPage({
               ))}
             </div>
           )}
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
 

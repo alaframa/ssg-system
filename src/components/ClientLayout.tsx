@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
+import SuppliersPage from "./SuppliersPage";
 import { ToastContainer, useToast } from "./Toast";
 
 const NAV_ITEMS = [
@@ -133,6 +134,8 @@ export default function ClientLayout({
           );
         }
         return <CustomersPage onNavigate={(id) => navigate("customers", id)} />;
+      case "suppliers":
+        return <SuppliersPage />;
       default:
         return (
           <div

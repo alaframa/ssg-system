@@ -9,7 +9,7 @@ export async function GET() {
 
   const branches = await prisma.branch.findMany({
     select: { id: true, code: true, name: true },
-    orderBy: { name: "asc" },
+    orderBy: { code: "asc" },
   });
 
   return NextResponse.json(branches);
