@@ -2,143 +2,169 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SSG Dashboard - Canvas Edition</title>
-    <style>
-        body { margin: 0; background-color: #0d1117; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        canvas { border-radius: 4px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-    </style>
-</head>
-<body>
-    <canvas id="ssgCanvas"></canvas>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSG Gas Distribution - Professional Light</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono&display=swap" rel="stylesheet">
     <script>
-        const canvas = document.getElementById('ssgCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 1200;
-        canvas.height = 700;
-
-        const colors = {
-            bg: '#161b22',       // Main background from your image
-            sidebar: '#1f212e',  // Sidebar depth
-            accent: '#d4af37',   // Gold/Yellow accent
-            textDim: '#8b949e',  // Muted gray for headers
-            cyan: '#58a6ff',     // Type labels
-            success: '#3fb950',  // Active status green
-            border: '#30363d'    // Subtle line dividers
-        };
-
-        function drawDashboard() {
-            // 1. MAIN BACKGROUND
-            ctx.fillStyle = colors.bg;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 2. SIDEBAR MOCKUP
-            ctx.fillStyle = colors.sidebar;
-            ctx.fillRect(0, 0, 220, canvas.height);
-            
-            // Branding (Top Left)
-            ctx.fillStyle = colors.accent;
-            ctx.font = "bold 18px sans-serif";
-            ctx.fillText("SSG Admin", 25, 40);
-            ctx.fillStyle = colors.textDim;
-            ctx.font = "10px sans-serif";
-            ctx.fillText("GAS DISTRIBUTION", 25, 55);
-
-            // Menu Items (Simulating your layout)
-            const menu = ["Dashboard", "Customers", "Suppliers", "Purchase Orders"];
-            menu.forEach((item, i) => {
-                ctx.fillStyle = (i === 0) ? colors.accent : colors.textDim;
-                ctx.font = "14px sans-serif";
-                ctx.fillText(item, 45, 110 + (i * 45));
-                // Small indicator for active
-                if(i === 0) {
-                    ctx.fillRect(0, 93, 4, 25);
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace'],
+                    },
+                    colors: {
+                        ssg: {
+                            bg: '#F3F4F6',        // Light Gray Background
+                            sidebar: '#1E293B',   // Dark Blue (Stable/Professional)
+                            card: '#FFFFFF',      // White for clean data areas
+                            primary: '#111827',   // Darkest text for data
+                            secondary: '#64748B', // Muted blue-gray
+                            success: '#15803d',   // Deep Green for trends
+                            warning: '#F97316',   // Orange for alerts
+                            accent: '#2563EB'     // Corporate Blue
+                        }
+                    }
                 }
-            });
-
-            // 3. HEADER AREA
-            ctx.fillStyle = colors.textDim;
-            ctx.font = "12px monospace";
-            ctx.fillText("SSG > DASHBOARD", 250, 40);
-
-            // 4. MAIN TITLE
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 28px sans-serif";
-            ctx.fillText("Dashboard Overview", 250, 95);
-
-            // 5. TREND CHART (Simulated Canvas Art)
-            ctx.strokeStyle = colors.cyan;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(280, 450);
-            ctx.bezierCurveTo(400, 400, 500, 550, 650, 420);
-            ctx.bezierCurveTo(800, 300, 950, 480, 1100, 350);
-            ctx.stroke();
-            
-            // Chart Fill
-            ctx.lineTo(1100, 550);
-            ctx.lineTo(280, 550);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(88, 166, 255, 0.1)';
-            ctx.fill();
-
-            // 6. METRIC CARDS (Matching your table style)
-            const metrics = [
-                { label: "Total Sales", val: "Rp 128.5M", sub: "+12% this month" },
-                { label: "Active Cylinders", val: "1,402", sub: "85% utilization" }
-            ];
-
-            metrics.forEach((m, i) => {
-                const x = 250 + (i * 450);
-                const y = 140;
-                ctx.fillStyle = colors.sidebar;
-                ctx.beginPath();
-                ctx.roundRect(x, y, 400, 120, 8);
-                ctx.fill();
-                ctx.strokeStyle = colors.border;
-                ctx.stroke();
-
-                ctx.fillStyle = colors.textDim;
-                ctx.font = "12px sans-serif";
-                ctx.fillText(m.label, x + 25, y + 35);
-
-                ctx.fillStyle = colors.accent;
-                ctx.font = "bold 32px monospace";
-                ctx.fillText(m.val, x + 25, y + 80);
-
-                ctx.fillStyle = colors.success;
-                ctx.font = "11px sans-serif";
-                ctx.fillText(m.sub, x + 270, y + 35);
-            });
-
-            // 7. ACCOUNT BOX (Bottom Left)
-            ctx.fillStyle = colors.border;
-            ctx.roundRect(15, 610, 190, 60, 10);
-            ctx.fill();
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 12px sans-serif";
-            ctx.fillText("Super Admin", 30, 635);
-            ctx.fillStyle = colors.accent;
-            ctx.font = "10px sans-serif";
-            ctx.fillText("SUPER ADMIN", 30, 652);
+            }
         }
-
-        // RoundRect Polyfill for browser compatibility
-        if (!CanvasRenderingContext2D.prototype.roundRect) {
-            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-                if (w < 2 * r) r = w / 2;
-                if (h < 2 * r) r = h / 2;
-                this.moveTo(x + r, y);
-                this.arcTo(x + w, y, x + w, y + h, r);
-                this.arcTo(x + w, y + h, x, y + h, r);
-                this.arcTo(x, y + h, x, y, r);
-                this.arcTo(x, y, x + w, y, r);
-                this.closePath();
-                return this;
-            };
-        }
-
-        drawDashboard();
     </script>
+</head>
+<body class="flex h-screen overflow-hidden bg-ssg-bg text-ssg-primary">
+
+    <aside class="w-64 bg-ssg-sidebar text-slate-300 flex flex-col flex-shrink-0">
+        <div class="p-6 border-b border-slate-700">
+            <div class="flex items-center space-x-3">
+                <div class="h-9 w-9 rounded-md bg-white flex items-center justify-center text-ssg-sidebar font-bold text-xl">S</div>
+                <div>
+                    <h1 class="text-sm font-bold text-white tracking-tight">SSG Admin</h1>
+                    <p class="text-[10px] text-ssg-success font-bold uppercase tracking-widest">Gas Distribution</p>
+                </div>
+            </div>
+        </div>
+        
+        <nav class="flex-1 mt-6 space-y-1 px-3">
+            <a href="#" class="flex items-center px-4 py-2.5 text-sm hover:bg-slate-800 rounded-lg">
+                <span class="mr-3">📊</span> Dashboard
+            </a>
+            <a href="#" class="bg-ssg-accent text-white flex items-center px-4 py-2.5 text-sm rounded-lg font-semibold">
+                <span class="mr-3">👥</span> Customers
+            </a>
+            <a href="#" class="flex items-center px-4 py-2.5 text-sm hover:bg-slate-800 rounded-lg">
+                <span class="mr-3">🏬</span> Suppliers
+            </a>
+            <a href="#" class="flex items-center px-4 py-2.5 text-sm hover:bg-slate-800 rounded-lg">
+                <span class="mr-3">📝</span> Purchase Orders
+            </a>
+            <a href="#" class="flex items-center px-4 py-2.5 text-sm hover:bg-slate-800 rounded-lg">
+                <span class="mr-3">🚚</span> Delivery Orders
+            </a>
+            <a href="#" class="flex items-center px-4 py-2.5 text-sm hover:bg-slate-800 rounded-lg">
+                <span class="mr-3">📦</span> Warehouse
+            </a>
+        </nav>
+
+        <div class="p-4 bg-slate-900/50">
+            <div class="flex items-center space-x-3 p-2">
+                <div class="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-white">SA</div>
+                <div class="overflow-hidden">
+                    <p class="text-xs font-bold text-white truncate">Super Admin</p>
+                    <p class="text-[10px] text-slate-400 uppercase">Surabaya Branch</p>
+                </div>
+            </div>
+            <button class="w-full mt-2 text-left px-2 py-1 text-[11px] text-slate-400 hover:text-red-400 transition-colors uppercase font-bold tracking-tighter">
+                Sign Out
+            </button>
+        </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col">
+        
+        <header class="h-14 bg-white border-b border-gray-200 flex items-center justify-end px-8">
+            <div class="flex items-center space-x-2 text-sm font-medium">
+                <span class="text-ssg-secondary">Branch:</span>
+                <span class="text-ssg-accent">Surabaya</span>
+                <span class="text-[10px]">▼</span>
+            </div>
+        </header>
+
+        <main class="flex-1 p-8 overflow-y-auto">
+            
+            <div class="mb-8">
+                <div class="flex items-center space-x-2 text-[10px] text-ssg-secondary mb-1 font-bold">
+                    <span>SSG</span> <span>></span> <span class="text-ssg-accent">CUSTOMERS</span>
+                </div>
+                <div class="flex justify-between items-end">
+                    <div>
+                        <h1 class="text-3xl font-black text-ssg-sidebar tracking-tight">Customers</h1>
+                        <p class="text-xs text-ssg-secondary mt-1 font-medium italic">Manage • Search • Filter</p>
+                    </div>
+                    <div class="bg-ssg-success/10 text-ssg-success px-4 py-1.5 rounded-full text-xs font-bold border border-ssg-success/20">
+                        225 Total Customers
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-ssg-card rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                
+                <div class="p-4 bg-gray-50 border-b border-gray-200 flex items-center space-x-3">
+                    <div class="relative flex-1">
+                        <input type="text" placeholder="Search customer name, code..." class="w-full bg-white text-sm rounded-lg border border-gray-300 p-2.5 pl-4 focus:ring-2 focus:ring-ssg-accent outline-none">
+                    </div>
+                    <select class="bg-white border border-gray-300 text-sm rounded-lg p-2.5 font-semibold text-ssg-sidebar">
+                        <option>All Branches</option>
+                    </select>
+                    <select class="bg-white border border-gray-300 text-sm rounded-lg p-2.5 font-semibold text-ssg-sidebar">
+                        <option>All Status</option>
+                    </select>
+                </div>
+
+                <table class="w-full text-left">
+                    <thead class="bg-white text-[11px] uppercase text-ssg-secondary font-bold tracking-widest border-b border-gray-100">
+                        <tr>
+                            <th class="px-6 py-4 text-ssg-accent">Code</th>
+                            <th class="px-6 py-4">Name</th>
+                            <th class="px-6 py-4">Type</th>
+                            <th class="px-6 py-4">Branch</th>
+                            <th class="px-6 py-4">Credit Limit</th>
+                            <th class="px-6 py-4">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 text-sm">
+                        <tr class="hover:bg-blue-50/30 transition-colors">
+                            <td class="px-6 py-4 font-mono text-xs text-ssg-secondary">SBY-1966CO-0001</td>
+                            <td class="px-6 py-4 font-bold text-ssg-sidebar">1966 Coffee House</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 bg-ssg-accent/10 text-ssg-accent rounded text-[10px] font-black uppercase">RETAIL</span>
+                            </td>
+                            <td class="px-6 py-4 font-bold text-ssg-secondary">SBY</td>
+                            <td class="px-6 py-4 font-mono font-bold text-ssg-sidebar">Rp 0</td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center text-ssg-success font-bold text-xs">
+                                    <span class="h-2 w-2 bg-ssg-success rounded-full mr-2"></span> Active
+                                </span>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-blue-50/30 transition-colors">
+                            <td class="px-6 py-4 font-mono text-xs text-ssg-secondary">SBY-APOTIK-0001</td>
+                            <td class="px-6 py-4 font-bold text-ssg-sidebar">Apotik Indah Farma</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-[10px] font-black uppercase">INDUSTRI</span>
+                            </td>
+                            <td class="px-6 py-4 font-bold text-ssg-secondary">SBY</td>
+                            <td class="px-6 py-4 font-mono font-bold text-ssg-sidebar">Rp 0</td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center text-ssg-success font-bold text-xs">
+                                    <span class="h-2 w-2 bg-ssg-success rounded-full mr-2"></span> Active
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
 </body>
 </html>

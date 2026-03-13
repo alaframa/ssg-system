@@ -7,30 +7,34 @@ import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
 
 const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", icon: "⬡" },
-  { key: "customers", label: "Customers", icon: "◈" },
-  { key: "suppliers", label: "Suppliers", icon: "◉" },
-  { key: "po", label: "Purchase Orders", icon: "◧" },
-  { key: "delivery", label: "Delivery Orders", icon: "▷" },
-  { key: "warehouse", label: "Warehouse", icon: "▣" },
-  { key: "gasback", label: "Gasback", icon: "◎" },
-  { key: "reports", label: "Reports", icon: "▤" },
+  { key: "dashboard", label: "Dashboard", icon: "📊" },
+  { key: "customers", label: "Customers", icon: "👥" },
+  { key: "suppliers", label: "Suppliers", icon: "🏬" },
+  { key: "po", label: "Purchase Orders", icon: "📝" },
+  { key: "delivery", label: "Delivery Orders", icon: "🚚" },
+  { key: "warehouse", label: "Warehouse", icon: "📦" },
+  { key: "gasback", label: "Gasback", icon: "♻️" },
+  { key: "reports", label: "Reports", icon: "📈" },
 ];
 
-const ROLE_COLORS = {
-  SUPER_ADMIN: "#d4af37",
-  BRANCH_MANAGER: "#5b9bd5",
-  WAREHOUSE_STAFF: "#6dbf8c",
-  SALES_STAFF: "#c97cd4",
-  FINANCE: "#e07b5a",
-  READONLY: "#8a96a8",
+const ROLE_COLORS: Record<string, string> = {
+  SUPER_ADMIN: "#2563EB",
+  BRANCH_MANAGER: "#0369A1",
+  WAREHOUSE_STAFF: "#15803D",
+  SALES_STAFF: "#7C3AED",
+  FINANCE: "#F97316",
+  READONLY: "#64748B",
 };
 
-export default function ClientLayout({ children }) {
+export default function ClientLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [selectedBranch, setSelectedBranch] = useState("SBY");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [customerDetailId, setCustomerDetailId] = useState(null);
+  const [customerDetailId, setCustomerDetailId] = useState<string | null>(null);
 
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -43,16 +47,42 @@ export default function ClientLayout({ children }) {
   }, [status, pathname, router]);
 
   if (pathname === "/login") return <>{children}</>;
+
   if (status === "loading")
     return (
-      <div className="flex items-center justify-center h-screen bg-[#161b22]">
-        <div className="text-5xl text-[#d4af37]">⬡</div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "#F3F4F6",
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: "#1E293B",
+            color: "#fff",
+            fontWeight: 900,
+            fontSize: 18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          S
+        </div>
       </div>
     );
+
   if (!session) return null;
 
-  const userRole = session.user.role;
-  const badgeColor = ROLE_COLORS[userRole] ?? "#8a96a8";
+  const userRole = (session.user as any).role as string;
+  const roleColor = ROLE_COLORS[userRole] ?? "#64748B";
+  const initials = session.user.name?.slice(0, 2).toUpperCase() ?? "?";
 
   const renderPage = () => {
     switch (currentPage) {
@@ -67,7 +97,17 @@ export default function ClientLayout({ children }) {
         return <CustomersPage onNavigate={(id) => setCustomerDetailId(id)} />;
       default:
         return (
-          <div className="flex items-center justify-center h-full text-[#58a6ff] text-2xl">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "#64748B",
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+          >
             Module Coming Soon
           </div>
         );
@@ -75,90 +115,94 @@ export default function ClientLayout({ children }) {
   };
 
   return (
-    <div className="flex h-screen font-sans">
-      {/* Sidebar */}
-      <aside
-        className={`bg-[#1f212e] ${sidebarOpen ? "w-64" : "w-20"} transition-all duration-300 flex flex-col`}
-      >
+    <div className="layout-shell">
+      {/* ── Sidebar ── */}
+      <aside className={`layout-sidebar ${sidebarOpen ? "open" : "closed"}`}>
+        {/* Brand / toggle */}
         <div
-          className="flex items-center gap-2 p-4 cursor-pointer hover:bg-[#2A2A40]"
+          className="sidebar-brand"
           onClick={() => setSidebarOpen((o) => !o)}
         >
-          <div className="w-10 h-10 rounded-lg bg-[#d4af37] flex items-center justify-center text-[#161b22] font-bold">
-            S
-          </div>
+          <div className="sidebar-logo">S</div>
           {sidebarOpen && (
-            <div className="flex flex-col">
-              <span className="text-[#EAEAEA] font-bold">SSG Admin</span>
-              <span className="text-[#8b949e] text-xs uppercase">
-                Gas Distribution
-              </span>
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-title">SSG Admin</span>
+              <span className="sidebar-brand-sub">Gas Distribution</span>
             </div>
           )}
         </div>
-        <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
+
+        {/* Navigation */}
+        <nav className="sidebar-nav">
           {NAV_ITEMS.map(({ key, label, icon }) => (
             <button
               key={key}
-              className={`flex items-center gap-3 p-2 rounded-lg text-sm transition ${currentPage === key ? "bg-[#d4af3733] text-[#d4af37]" : "text-[#8b949e] hover:text-[#d4af37] hover:bg-[#2a2a40]"}`}
-              onClick={() => setCurrentPage(key)}
+              className={`nav-btn ${currentPage === key ? "active" : ""}`}
+              onClick={() => {
+                setCurrentPage(key);
+                setCustomerDetailId(null);
+              }}
               title={!sidebarOpen ? label : undefined}
             >
-              <span className="w-6 text-center">{icon}</span>
-              {sidebarOpen && label}
+              <span className="nav-icon">{icon}</span>
+              {sidebarOpen && <span>{label}</span>}
             </button>
           ))}
         </nav>
-        <div className="p-3 border-t border-[#30363d]">
+
+        {/* User footer */}
+        <div className="sidebar-footer">
           {sidebarOpen && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 bg-[#2A2A40] p-2 rounded-lg">
-                <div className="w-8 h-8 rounded-md bg-[#505A72] flex items-center justify-center font-semibold">
-                  {session.user.name?.charAt(0)}
-                </div>
-                <div className="flex flex-col text-xs">
-                  <span className="text-[#EAEAEA]">{session.user.name}</span>
-                  <span style={{ color: badgeColor }}>
+            <>
+              <div className="sidebar-user">
+                <div className="sidebar-avatar">{initials}</div>
+                <div style={{ overflow: "hidden" }}>
+                  <div className="sidebar-user-name">{session.user.name}</div>
+                  <div
+                    className="sidebar-user-role"
+                    style={{ color: roleColor }}
+                  >
                     {userRole.replace(/_/g, " ")}
-                  </span>
+                  </div>
                 </div>
               </div>
               <button
+                className="sidebar-signout"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="w-full p-2 rounded-md text-xs text-[#8b949e] hover:text-[#e07b5a] hover:bg-[#422B2A]"
               >
                 ⏻ Sign Out
               </button>
-            </div>
+            </>
           )}
         </div>
       </aside>
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="flex items-center justify-between bg-[#161b22] border-b border-[#30363d] p-4">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#3fb950] shadow-[0_0_6px_#3fb950]"></div>
-            <div className="text-xs text-[#8b949e] uppercase flex gap-1">
-              <span>SSG</span> ›{" "}
-              <span className="text-[#EAEAEA] font-semibold">
-                {currentPage}
-              </span>
+
+      {/* ── Main ── */}
+      <div className="layout-main">
+        {/* Top bar */}
+        <header className="layout-topbar">
+          <div className="topbar-breadcrumb">
+            <span>SSG</span>
+            <span>›</span>
+            <span className="topbar-breadcrumb-cur">{currentPage}</span>
+          </div>
+
+          <div className="topbar-branch">
+            <span className="topbar-branch-label">Branch:</span>
+            <div className="topbar-branch">
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+              >
+                <option value="SBY">Surabaya</option>
+                <option value="YOG">Yogyakarta</option>
+              </select>
             </div>
           </div>
-          <div>
-            <select
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="bg-[#2A2A40] text-[#d4af37] rounded-lg px-2 py-1 text-sm"
-            >
-              <option value="SBY">Surabaya</option>
-              <option value="YOG">Yogyakarta</option>
-            </select>
-          </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-8 bg-[#161b22]">
-          {renderPage()}
-        </main>
+
+        {/* Page content */}
+        <main className="layout-content">{renderPage()}</main>
       </div>
     </div>
   );
