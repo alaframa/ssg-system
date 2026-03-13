@@ -6,8 +6,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
 import SuppliersPage from "./SuppliersPage";
-import PurchaseOrdersPage from "./PurchaseOrdersPage";
-import DeliveryOrdersPage from "./DeliveryOrdersPage";
+// import PurchaseOrdersPage from "./PurchaseOrdersPage";
+// import DeliveryOrdersPage from "./DeliveryOrdersPage";
 import { ToastContainer, useToast } from "./Toast";
 
 const NAV_ITEMS = [
@@ -129,10 +129,10 @@ export default function ClientLayout({
         return <CustomersPage onNavigate={(id) => navigate("customers", id)} />;
       case "suppliers":
         return <SuppliersPage />;
-      case "po":
-        return <PurchaseOrdersPage />;
-      case "delivery":
-        return <DeliveryOrdersPage />;
+      // case "po":
+      //   return <PurchaseOrdersPage />;
+      // case "delivery":
+      //   return <DeliveryOrdersPage />;
       default:
         return (
           <div
