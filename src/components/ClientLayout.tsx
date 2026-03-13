@@ -129,6 +129,7 @@ export default function ClientLayout({
         return <CustomersPage onNavigate={(id) => navigate("customers", id)} />;
       case "suppliers":
         return <SuppliersPage />;
+
       // case "po":
       //   return <PurchaseOrdersPage />;
       // case "delivery":
