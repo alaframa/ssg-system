@@ -79,7 +79,8 @@ interface PoOption {
 const fmt = (n: number) => n.toLocaleString();
 const today = () => new Date().toISOString().slice(0, 10);
 
-const [showStockForm, setShowStockForm] = useState(false);
+// FIX: was incorrectly placed here at module level — moved into WarehousePage component body
+// const [showStockForm, setShowStockForm] = useState(false);  ← REMOVED
 
 const REASON_LABELS: Record<string, string> = {
   RUSAK_BERAT: "Rusak Berat",
@@ -106,6 +107,7 @@ export default function WarehousePage({
   const [stock, setStock] = useState<StockRow[]>([]);
   const [hmtQuota, setHmtQuota] = useState<HmtQuota[]>([]);
   const [stockLoading, setStockLoading] = useState(false);
+  const [showStockForm, setShowStockForm] = useState(false); // FIX: moved here from module level
 
   // inbound
   const [inbound, setInbound] = useState<InboundRow[]>([]);
@@ -364,187 +366,210 @@ export default function WarehousePage({
       {/* ── TAB: STOCK DASHBOARD ── */}
       {tab === "stock" && (
         <div>
-    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-      <button className="btn-gho" onClick={() => setShowStockForm((v) => !v)}>
-        ✏️ Adjust Stock
-      </button>
-    </div>
-    {showStockForm && (
-      <ManualStockForm
-        branchId={branchId}
-        onClose={() => setShowStockForm(false)}
-        onSaved={() => { setShowStockForm(false); loadStock(); }}
-      />
-    )}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginBottom: 16,
+            }}
+          >
+            <button
+              className="btn-gho"
+              onClick={() => setShowStockForm((v) => !v)}
+            >
+              ✏️ Adjust Stock
+            </button>
+          </div>
+          {showStockForm && (
+            <ManualStockForm
+              branchId={branchId}
+              onClose={() => setShowStockForm(false)}
+              onSaved={() => {
+                setShowStockForm(false);
+                loadStock();
+              }}
+            />
+          )}
 
-        <div>
-          {stockLoading ? (
-            <div style={{ color: "var(--text-low)", fontSize: 13 }}>
-              Loading stock…
-            </div>
-          ) : (
-            <>
-              {/* Stock cards */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                  gap: 16,
-                  marginBottom: 32,
-                }}
-              >
-                {(["KG12", "KG50", "KG3", "KG5_5"] as CylSize[]).map((size) => {
-                  const row = stock.find((s) => s.cylinderSize === size);
-                  const quota = hmtQuota.find((q) => q.cylinderSize === size);
-                  const pct = quota
-                    ? Math.round(
-                        (quota.usedQty / Math.max(1, quota.quotaQty)) * 100,
-                      )
-                    : null;
-                  const warn = pct !== null && pct >= 90;
-                  return (
-                    <div
-                      key={size}
-                      style={{
-                        background: "var(--card)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-md)",
-                        padding: 20,
-                        borderTop: `3px solid ${warn ? "var(--danger)" : "var(--accent)"}`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          color: "var(--text-low)",
-                          marginBottom: 8,
-                        }}
-                      >
-                        {CYL_LABELS[size]}
-                      </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr 1fr",
-                          gap: 8,
-                          marginBottom: 12,
-                        }}
-                      >
-                        {[
-                          {
-                            label: "Isi (full)",
-                            val: row?.fullQty ?? 0,
-                            color: "var(--success)",
-                          },
-                          {
-                            label: "Kosong",
-                            val: row?.emptyQty ?? 0,
-                            color: "var(--text-mid)",
-                          },
-                          {
-                            label: "Transit",
-                            val: row?.onTransitQty ?? 0,
-                            color: "#F97316",
-                          },
-                        ].map(({ label, val, color }) => (
-                          <div key={label} style={{ textAlign: "center" }}>
-                            <div
-                              style={{ fontSize: 22, fontWeight: 900, color }}
-                            >
-                              {fmt(val)}
+          <div>
+            {stockLoading ? (
+              <div style={{ color: "var(--text-low)", fontSize: 13 }}>
+                Loading stock…
+              </div>
+            ) : (
+              <>
+                {/* Stock cards */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(240px, 1fr))",
+                    gap: 16,
+                    marginBottom: 32,
+                  }}
+                >
+                  {(["KG12", "KG50", "KG3", "KG5_5"] as CylSize[]).map(
+                    (size) => {
+                      const row = stock.find((s) => s.cylinderSize === size);
+                      const quota = hmtQuota.find(
+                        (q) => q.cylinderSize === size,
+                      );
+                      const pct = quota
+                        ? Math.round(
+                            (quota.usedQty / Math.max(1, quota.quotaQty)) * 100,
+                          )
+                        : null;
+                      const warn = pct !== null && pct >= 90;
+                      return (
+                        <div
+                          key={size}
+                          style={{
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-md)",
+                            padding: 20,
+                            borderTop: `3px solid ${
+                              warn ? "var(--danger)" : "var(--accent)"
+                            }`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "var(--text-low)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.08em",
+                              marginBottom: 12,
+                            }}
+                          >
+                            {CYL_LABELS[size]}
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr 1fr",
+                              gap: 8,
+                              marginBottom: 12,
+                            }}
+                          >
+                            {[
+                              {
+                                label: "Full",
+                                val: row?.fullQty ?? 0,
+                                color: "var(--accent)",
+                              },
+                              {
+                                label: "Empty",
+                                val: row?.emptyQty ?? 0,
+                                color: "var(--text-mid)",
+                              },
+                              {
+                                label: "Transit",
+                                val: row?.onTransitQty ?? 0,
+                                color: "#F59E0B",
+                              },
+                            ].map(({ label, val, color }) => (
+                              <div key={label} style={{ textAlign: "center" }}>
+                                <div
+                                  style={{
+                                    fontSize: 20,
+                                    fontWeight: 900,
+                                    color,
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  {fmt(val)}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 10,
+                                    color: "var(--text-low)",
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {label}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {quota && (
+                            <div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  fontSize: 10,
+                                  color: warn
+                                    ? "var(--danger)"
+                                    : "var(--text-low)",
+                                  marginBottom: 4,
+                                }}
+                              >
+                                <span>HMT Quota</span>
+                                <span>
+                                  {fmt(quota.usedQty)} / {fmt(quota.quotaQty)} (
+                                  {pct ?? 0}%)
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  height: 5,
+                                  background: "var(--border)",
+                                  borderRadius: 3,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    height: "100%",
+                                    width: `${Math.min(100, pct ?? 0)}%`,
+                                    background: warn
+                                      ? "var(--danger)"
+                                      : "var(--accent)",
+                                    transition: "width 0.4s",
+                                    borderRadius: 3,
+                                  }}
+                                />
+                              </div>
                             </div>
+                          )}
+                          {row?.stockDate && (
                             <div
                               style={{
                                 fontSize: 10,
                                 color: "var(--text-low)",
-                                marginTop: 2,
+                                marginTop: 8,
                               }}
                             >
-                              {label}
+                              Last update:{" "}
+                              {new Date(row.stockDate).toLocaleDateString(
+                                "id-ID",
+                              )}
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                      {quota && (
-                        <div>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              fontSize: 10,
-                              color: "var(--text-low)",
-                              marginBottom: 4,
-                            }}
-                          >
-                            <span>HMT Quota {pct}%</span>
-                            <span
-                              style={{
-                                color: warn
-                                  ? "var(--danger)"
-                                  : "var(--text-mid)",
-                              }}
-                            >
-                              {fmt(quota.usedQty)} / {fmt(quota.quotaQty)}{" "}
-                              {warn && "⚠️"}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              height: 6,
-                              background: "var(--border)",
-                              borderRadius: 3,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: "100%",
-                                width: `${Math.min(100, pct ?? 0)}%`,
-                                background: warn
-                                  ? "var(--danger)"
-                                  : "var(--accent)",
-                                transition: "width 0.4s",
-                                borderRadius: 3,
-                              }}
-                            />
-                          </div>
+                          )}
                         </div>
-                      )}
-                      {row?.stockDate && (
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: "var(--text-low)",
-                            marginTop: 8,
-                          }}
-                        >
-                          Last update:{" "}
-                          {new Date(row.stockDate).toLocaleDateString("id-ID")}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {stock.length === 0 && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "60px 0",
-                    color: "var(--text-low)",
-                    fontSize: 13,
-                  }}
-                >
-                  No stock data yet. Record an inbound receiving to start
-                  tracking.
+                      );
+                    },
+                  )}
                 </div>
-              )}
-            </>
-          )}
+
+                {stock.length === 0 && (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "60px 0",
+                      color: "var(--text-low)",
+                      fontSize: 13,
+                    }}
+                  >
+                    No stock data yet. Record an inbound receiving to start
+                    tracking.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -803,22 +828,17 @@ function ListTable({
             ))
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={cols.length}>
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "60px 0",
-                    color: "var(--text-low)",
-                    fontSize: 13,
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 32, opacity: 0.18, marginBottom: 10 }}
-                  >
-                    {emptyIcon}
-                  </div>
-                  {emptyMsg}
-                </div>
+              <td
+                colSpan={cols.length}
+                style={{
+                  padding: "60px 0",
+                  textAlign: "center",
+                  color: "var(--text-low)",
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ fontSize: 32, marginBottom: 8 }}>{emptyIcon}</div>
+                {emptyMsg}
               </td>
             </tr>
           ) : (
@@ -827,13 +847,25 @@ function ListTable({
                 key={i}
                 style={{
                   borderBottom: "1px solid var(--border)",
-                  background: i % 2 === 0 ? "transparent" : "var(--bg)",
+                  transition: "background 0.1s",
                 }}
+                onMouseEnter={(e) =>
+                  ((e.currentTarget as HTMLTableRowElement).style.background =
+                    "var(--bg)")
+                }
+                onMouseLeave={(e) =>
+                  ((e.currentTarget as HTMLTableRowElement).style.background =
+                    "")
+                }
               >
                 {row.map((cell, j) => (
                   <td
                     key={j}
-                    style={{ padding: "11px 14px", color: "var(--text-hi)" }}
+                    style={{
+                      padding: "11px 14px",
+                      color: "var(--text-hi)",
+                      verticalAlign: "middle",
+                    }}
                   >
                     {cell}
                   </td>
@@ -843,45 +875,158 @@ function ListTable({
           )}
         </tbody>
       </table>
-      {total > limit && (
+
+      {/* Pagination */}
+      {pages > 1 && (
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "10px 16px",
+            gap: 4,
+            padding: "12px 14px",
             borderTop: "1px solid var(--border)",
-            fontSize: 12,
-            color: "var(--text-low)",
+            justifyContent: "flex-end",
           }}
         >
-          <span>{total} total</span>
-          <div style={{ display: "flex", gap: 4 }}>
-            {Array.from({ length: pages }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => onPage(i + 1)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                  background: page === i + 1 ? "var(--accent)" : "var(--card)",
-                  color: page === i + 1 ? "#fff" : "var(--text-mid)",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: page === i + 1 ? 700 : 400,
-                }}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
+          {Array.from({ length: pages }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => onPage(i + 1)}
+              style={{
+                padding: "4px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                background: page === i + 1 ? "var(--accent)" : "var(--card)",
+                color: page === i + 1 ? "#fff" : "var(--text-mid)",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: page === i + 1 ? 700 : 400,
+              }}
+            >
+              {i + 1}
+            </button>
+          ))}
         </div>
       )}
     </div>
   );
 }
+
+// ── Modal wrapper ─────────────────────────────────────────────────────────────
+function ModalForm({
+  title,
+  onClose,
+  onSubmit,
+  saving,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  onSubmit: () => void;
+  saving: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        padding: 24,
+        marginBottom: 24,
+        boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)" }}>
+          {title}
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            fontSize: 18,
+            cursor: "pointer",
+            color: "var(--text-low)",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {children}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 10,
+          marginTop: 20,
+        }}
+      >
+        <button className="btn-gho" onClick={onClose} disabled={saving}>
+          Cancel
+        </button>
+        <button className="btn-pri" onClick={onSubmit} disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── FormField ─────────────────────────────────────────────────────────────────
+function FormField({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        style={{
+          display: "block",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--text-mid)",
+          marginBottom: 5,
+        }}
+      >
+        {label}
+      </label>
+      {children}
+      {error && (
+        <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "8px 10px",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--bg)",
+  color: "var(--text-hi)",
+  fontFamily: "var(--font-sans)",
+  fontSize: 13,
+  boxSizing: "border-box",
+  outline: "none",
+};
 
 // ── GR Form ───────────────────────────────────────────────────────────────────
 function GrForm({
@@ -949,54 +1094,57 @@ function GrForm({
 
   return (
     <ModalForm
-      title="Record Inbound (GR)"
+      title="Record Goods Receipt (GR)"
       onClose={onClose}
       onSubmit={handleSubmit}
       saving={saving}
     >
-      <FormField label="Purchase Order" error={errors.supplierPoId}>
+      <FormField label="Supplier PO" error={errors.supplierPoId}>
         <select
           value={form.supplierPoId}
           onChange={(e) => set("supplierPoId", e.target.value)}
           style={fieldStyle}
         >
-          <option value="">— select PO —</option>
-          {poOptions.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.poNumber} ({CYL_LABELS[p.cylinderSize]}, {p.orderedQty} cyl)
+          <option value="">— Select PO —</option>
+          {poOptions.map((po) => (
+            <option key={po.id} value={po.id}>
+              {po.poNumber} · {CYL_LABELS[po.cylinderSize]} ×{" "}
+              {fmt(po.orderedQty)}
             </option>
           ))}
         </select>
       </FormField>
-      <FormField label="GR Number" error={errors.grNumber}>
-        <input
-          value={form.grNumber}
-          onChange={(e) => set("grNumber", e.target.value)}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <FormField label="GR Number" error={errors.grNumber}>
+          <input
+            value={form.grNumber}
+            onChange={(e) => set("grNumber", e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
+        <FormField label="Received Date" error={errors.receivedDate}>
+          <input
+            type="date"
+            value={form.receivedDate}
+            onChange={(e) => set("receivedDate", e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
+      </div>
+      <FormField label="Cylinder Size" error={errors.cylinderSize}>
+        <select
+          value={form.cylinderSize}
+          onChange={(e) => set("cylinderSize", e.target.value)}
           style={fieldStyle}
-        />
-      </FormField>
-      <FormField label="Received Date" error={errors.receivedDate}>
-        <input
-          type="date"
-          value={form.receivedDate}
-          onChange={(e) => set("receivedDate", e.target.value)}
-          style={fieldStyle}
-        />
+        >
+          {(Object.keys(CYL_LABELS) as CylSize[]).map((s) => (
+            <option key={s} value={s}>
+              {CYL_LABELS[s]}
+            </option>
+          ))}
+        </select>
       </FormField>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <FormField label="Cylinder Size" error={errors.cylinderSize}>
-          <select
-            value={form.cylinderSize}
-            onChange={(e) => set("cylinderSize", e.target.value)}
-            style={fieldStyle}
-          >
-            {(Object.keys(CYL_LABELS) as CylSize[]).map((s) => (
-              <option key={s} value={s}>
-                {CYL_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </FormField>
         <FormField label="Received Qty" error={errors.receivedQty}>
           <input
             type="number"
@@ -1006,19 +1154,16 @@ function GrForm({
             style={fieldStyle}
           />
         </FormField>
+        <FormField label="Good Qty" error={errors.goodQty}>
+          <input
+            type="number"
+            min={0}
+            value={form.goodQty}
+            onChange={(e) => set("goodQty", e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
       </div>
-      <FormField
-        label={`Good Qty (pass QC) — reject = ${Math.max(0, Number(form.receivedQty || 0) - Number(form.goodQty || 0))}`}
-        error={errors.goodQty}
-      >
-        <input
-          type="number"
-          min={0}
-          value={form.goodQty}
-          onChange={(e) => set("goodQty", e.target.value)}
-          style={fieldStyle}
-        />
-      </FormField>
       <FormField label="Notes (optional)" error={errors.notes}>
         <textarea
           value={form.notes}
@@ -1089,21 +1234,23 @@ function ReturnForm({
       onSubmit={handleSubmit}
       saving={saving}
     >
-      <FormField label="Return Number" error={errors.returnNumber}>
-        <input
-          value={form.returnNumber}
-          onChange={(e) => set("returnNumber", e.target.value)}
-          style={fieldStyle}
-        />
-      </FormField>
-      <FormField label="Return Date" error={errors.returnDate}>
-        <input
-          type="date"
-          value={form.returnDate}
-          onChange={(e) => set("returnDate", e.target.value)}
-          style={fieldStyle}
-        />
-      </FormField>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <FormField label="Return Number" error={errors.returnNumber}>
+          <input
+            value={form.returnNumber}
+            onChange={(e) => set("returnNumber", e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
+        <FormField label="Return Date" error={errors.returnDate}>
+          <input
+            type="date"
+            value={form.returnDate}
+            onChange={(e) => set("returnDate", e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <FormField label="Cylinder Size" error={errors.cylinderSize}>
           <select
@@ -1292,125 +1439,7 @@ function WriteoffForm({
   );
 }
 
-// ── Shared modal wrapper ──────────────────────────────────────────────────────
-function ModalForm({
-  title,
-  children,
-  onClose,
-  onSubmit,
-  saving,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-  onSubmit: () => void;
-  saving: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        padding: 24,
-        marginBottom: 24,
-        boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)" }}>
-          {title}
-        </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: 20,
-            cursor: "pointer",
-            color: "var(--text-low)",
-            lineHeight: 1,
-          }}
-        >
-          ×
-        </button>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {children}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 10,
-          marginTop: 20,
-        }}
-      >
-        <button onClick={onClose} className="btn-gho">
-          Cancel
-        </button>
-        <button onClick={onSubmit} disabled={saving} className="btn-pri">
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function FormField({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--text-mid)",
-          marginBottom: 5,
-        }}
-      >
-        {label}
-      </label>
-      {children}
-      {error && (
-        <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>
-          {error}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const fieldStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-sm)",
-  background: "var(--bg)",
-  color: "var(--text-hi)",
-  fontFamily: "var(--font-sans)",
-  fontSize: 13,
-  boxSizing: "border-box",
-  outline: "none",
-};
-
-// ── ManualStockForm — paste at bottom of WarehousePage.tsx alongside GrForm/ReturnForm/WriteoffForm
-
+// ── ManualStockForm ───────────────────────────────────────────────────────────
 function ManualStockForm({
   branchId,
   onClose,
@@ -1458,52 +1487,14 @@ function ManualStockForm({
   }
 
   return (
-    <div
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        padding: 24,
-        marginBottom: 20,
-      }}
+    <ModalForm
+      title="Adjust Stock (Manual)"
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      saving={saving}
     >
-      <div
-        style={{
-          fontWeight: 700,
-          fontSize: 15,
-          marginBottom: 16,
-          color: "var(--sidebar)",
-        }}
-      >
-        Manual Stock Adjustment
-      </div>
-
-      {errors._ && (
-        <div style={{ color: "var(--danger)", fontSize: 12, marginBottom: 12 }}>
-          {errors._}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <label
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--text-mid)",
-              display: "block",
-              marginBottom: 4,
-            }}
-          >
-            Cylinder Size
-          </label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <FormField label="Cylinder Size" error={errors.cylinderSize}>
           <select
             value={form.cylinderSize}
             onChange={(e) =>
@@ -1512,16 +1503,7 @@ function ManualStockForm({
                 cylinderSize: e.target.value as CylSize,
               }))
             }
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--bg)",
-              fontFamily: "var(--font-sans)",
-              fontSize: 13,
-              outline: "none",
-            }}
+            style={fieldStyle}
           >
             {(Object.keys(CYL_LABELS) as CylSize[]).map((s) => (
               <option key={s} value={s}>
@@ -1529,99 +1511,58 @@ function ManualStockForm({
               </option>
             ))}
           </select>
-        </div>
-
-        <div>
-          <label
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--text-mid)",
-              display: "block",
-              marginBottom: 4,
-            }}
-          >
-            Date
-          </label>
+        </FormField>
+        <FormField label="Stock Date" error={errors.stockDate}>
           <input
             type="date"
             value={form.stockDate}
             onChange={(e) =>
               setForm((f) => ({ ...f, stockDate: e.target.value }))
             }
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--bg)",
-              fontFamily: "var(--font-sans)",
-              fontSize: 13,
-              outline: "none",
-              boxSizing: "border-box",
-            }}
+            style={fieldStyle}
           />
-        </div>
+        </FormField>
       </div>
-
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 12,
-          marginBottom: 20,
-        }}
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}
       >
-        {(
-          [
-            ["fullQty", "Full (isi)"],
-            ["emptyQty", "Empty (kosong)"],
-            ["onTransitQty", "On Transit"],
-          ] as const
-        ).map(([key, label]) => (
-          <div key={key}>
-            <label
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--text-mid)",
-                display: "block",
-                marginBottom: 4,
-              }}
-            >
-              {label}
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={(form as any)[key]}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, [key]: e.target.value }))
-              }
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--bg)",
-                fontFamily: "var(--font-sans)",
-                fontSize: 13,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        ))}
+        <FormField label="Full Qty" error={errors.fullQty}>
+          <input
+            type="number"
+            min={0}
+            value={form.fullQty}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, fullQty: e.target.value }))
+            }
+            style={fieldStyle}
+          />
+        </FormField>
+        <FormField label="Empty Qty" error={errors.emptyQty}>
+          <input
+            type="number"
+            min={0}
+            value={form.emptyQty}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, emptyQty: e.target.value }))
+            }
+            style={fieldStyle}
+          />
+        </FormField>
+        <FormField label="On Transit" error={errors.onTransitQty}>
+          <input
+            type="number"
+            min={0}
+            value={form.onTransitQty}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, onTransitQty: e.target.value }))
+            }
+            style={fieldStyle}
+          />
+        </FormField>
       </div>
-
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button className="btn-gho" onClick={onClose} disabled={saving}>
-          Cancel
-        </button>
-        <button className="btn-pri" onClick={handleSubmit} disabled={saving}>
-          {saving ? "Saving…" : "Save Adjustment"}
-        </button>
-      </div>
-    </div>
+      {errors._ && (
+        <div style={{ color: "var(--danger)", fontSize: 12 }}>{errors._}</div>
+      )}
+    </ModalForm>
   );
 }

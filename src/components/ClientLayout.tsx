@@ -9,8 +9,8 @@ import CustomersPage from "./CustomersPage";
 import CustomerDetailPage from "./CustomerDetailPage";
 import SuppliersPage from "./SuppliersPage";
 import WarehousePage from "./WarehousePage";
-// import PurchaseOrdersPage from "./PurchaseOrdersPage";
-// import DeliveryOrdersPage from "./DeliveryOrdersPage";
+import PurchaseOrdersPage from "./PurchaseOrdersPage";
+import DeliveryOrdersPage from "./DeliveryOrdersPage";
 import { ToastContainer, useToast } from "./Toast";
 
 const NAV_ITEMS = [
@@ -61,7 +61,7 @@ export default function ClientLayout({
   const customerDetailId = searchParams.get("id") ?? null;
   const notifyKey = searchParams.get("notify") ?? null;
 
-  // ── Load branches once so we can populate the topbar switcher ────────────
+  // ── Load branches once ────────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/branches")
       .then((r) => r.json())
@@ -157,11 +157,11 @@ export default function ClientLayout({
       case "warehouse":
         return <WarehousePage activeBranchId={activeBranchId} />;
 
-      // case "po":
-      //   return <PurchaseOrdersPage />;
+      case "po":
+        return <PurchaseOrdersPage activeBranchId={activeBranchId} />;
 
-      // case "delivery":
-      //   return <DeliveryOrdersPage />;
+      case "delivery":
+        return <DeliveryOrdersPage activeBranchId={activeBranchId} />;
 
       default:
         return (
@@ -251,7 +251,9 @@ export default function ClientLayout({
             <div className="topbar-breadcrumb">
               <span>SSG</span>
               <span>›</span>
-              <span className="topbar-breadcrumb-cur">{currentPage}</span>
+              <span className="topbar-breadcrumb-cur">
+                {currentPage.toUpperCase()}
+              </span>
               {customerDetailId && (
                 <>
                   <span>›</span>
@@ -269,30 +271,24 @@ export default function ClientLayout({
               )}
             </div>
 
-            {/* Branch switcher — drives activeBranchId for WarehousePage etc. */}
+            {/* Branch switcher */}
             <div className="topbar-branch">
               <span className="topbar-branch-label">Branch:</span>
               <select
                 value={activeBranchId}
                 onChange={(e) => setActiveBranchId(e.target.value)}
+                className="topbar-branch-select"
               >
-                {branches.length > 0 ? (
-                  branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value="SBY">Surabaya</option>
-                    <option value="YOG">Yogyakarta</option>
-                  </>
-                )}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
               </select>
             </div>
           </header>
 
-          {/* Page content */}
+          {/* Content */}
           <main className="layout-content">{renderPage()}</main>
         </div>
       </div>
