@@ -5,10 +5,11 @@ import prisma from "@/lib/prisma";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   const session = await getServerSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const customer = await prisma.customer.findUnique({
     where: { id: params.id },
@@ -21,7 +22,7 @@ export async function GET(
         select: {
           deliveryOrders: true,
           gasbackLedgers: true,
-          gasbackClaims:  true,
+          gasbackClaims: true,
         },
       },
     },
@@ -36,20 +37,34 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   const session = await getServerSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const allowed = ["name", "customerType", "phone", "email", "address", "npwp", "creditLimit", "isActive"];
+  const allowed = [
+    "name",
+    "customerType",
+    "phone",
+    "email",
+    "address",
+    "npwp",
+    "creditLimitKg12",
+    "creditLimitKg50",
+    "isActive",
+  ];
   const data: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) data[key] = body[key];
   }
 
   try {
-    const updated = await prisma.customer.update({ where: { id: params.id }, data });
+    const updated = await prisma.customer.update({
+      where: { id: params.id },
+      data,
+    });
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "Update failed" }, { status: 500 });

@@ -18,7 +18,8 @@ interface CustomerFormData {
   email: string;
   address: string;
   npwp: string;
-  creditLimit: string;
+  creditLimitKg12: string;
+  creditLimitKg50: string;
   isActive: boolean;
 }
 
@@ -27,7 +28,6 @@ interface CustomerLike extends CustomerFormData {
 }
 
 interface Props {
-  /** Pass existing customer to edit, undefined to create new */
   customer?: CustomerLike;
   branches: Branch[];
   onClose: () => void;
@@ -62,16 +62,25 @@ function validate(form: CustomerFormData): Record<string, string> {
   }
 
   if (
-    form.creditLimit !== "" &&
-    (isNaN(Number(form.creditLimit)) || Number(form.creditLimit) < 0)
+    form.creditLimitKg12 !== "" &&
+    (!Number.isInteger(Number(form.creditLimitKg12)) ||
+      Number(form.creditLimitKg12) < 0)
   ) {
-    err.creditLimit = "Must be a non-negative number.";
+    err.creditLimitKg12 = "Must be a non-negative whole number.";
+  }
+
+  if (
+    form.creditLimitKg50 !== "" &&
+    (!Number.isInteger(Number(form.creditLimitKg50)) ||
+      Number(form.creditLimitKg50) < 0)
+  ) {
+    err.creditLimitKg50 = "Must be a non-negative whole number.";
   }
 
   return err;
 }
 
-// ─── Field wrapper — MUST be outside parent component to avoid remount on every render ───
+// ─── Field — outside component to prevent remount on every render ─────────────
 function Field({
   label,
   required,
@@ -108,7 +117,7 @@ function Field({
   );
 }
 
-// ─── inputStyle — MUST be outside parent component, takes errors as param ────
+// ─── inputStyle — outside component ──────────────────────────────────────────
 function inputStyle(
   errors: Record<string, string>,
   key: string,
@@ -139,7 +148,8 @@ export default function AddEditCustomerModal({
     email: customer?.email ?? "",
     address: customer?.address ?? "",
     npwp: customer?.npwp ?? "",
-    creditLimit: String(customer?.creditLimit ?? "0"),
+    creditLimitKg12: String(customer?.creditLimitKg12 ?? "0"),
+    creditLimitKg50: String(customer?.creditLimitKg50 ?? "0"),
     isActive: customer?.isActive ?? true,
   });
 
@@ -147,7 +157,6 @@ export default function AddEditCustomerModal({
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState("");
 
-  // Clear address error if type switches away from AGEN/INDUSTRI
   useEffect(() => {
     if (!["AGEN", "INDUSTRI"].includes(form.customerType)) {
       setErrors((e) => {
@@ -186,7 +195,11 @@ export default function AddEditCustomerModal({
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          creditLimitKg12: Number(form.creditLimitKg12) || 0,
+          creditLimitKg50: Number(form.creditLimitKg50) || 0,
+        }),
       });
 
       const data = await res.json();
@@ -208,7 +221,6 @@ export default function AddEditCustomerModal({
     }
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="cd-ov" onClick={onClose} />
@@ -335,27 +347,48 @@ export default function AddEditCustomerModal({
             />
           </Field>
 
-          {/* NPWP + Credit Limit side by side */}
+          {/* NPWP */}
+          <Field label="NPWP" hint="XX.XXX.XXX.X-XXX.XXX">
+            <input
+              className="cd-inp"
+              placeholder="12.345.678.9-101.000"
+              value={form.npwp}
+              onChange={(e) => set("npwp", e.target.value)}
+            />
+          </Field>
+
+          {/* Credit Limit — per cylinder size in tabung */}
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            <Field label="NPWP" hint="XX.XXX.XXX.X-XXX.XXX">
-              <input
-                className="cd-inp"
-                placeholder="12.345.678.9-101.000"
-                value={form.npwp}
-                onChange={(e) => set("npwp", e.target.value)}
-              />
-            </Field>
-            <Field label="Credit Limit (Rp)" error={errors.creditLimit}>
+            <Field
+              label="Credit Limit 12 kg (tabung)"
+              error={errors.creditLimitKg12}
+            >
               <input
                 type="number"
                 className="cd-inp"
-                style={inputStyle(errors, "creditLimit")}
+                style={inputStyle(errors, "creditLimitKg12")}
                 placeholder="0"
                 min="0"
-                value={form.creditLimit}
-                onChange={(e) => set("creditLimit", e.target.value)}
+                step="1"
+                value={form.creditLimitKg12}
+                onChange={(e) => set("creditLimitKg12", e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Credit Limit 50 kg (tabung)"
+              error={errors.creditLimitKg50}
+            >
+              <input
+                type="number"
+                className="cd-inp"
+                style={inputStyle(errors, "creditLimitKg50")}
+                placeholder="0"
+                min="0"
+                step="1"
+                value={form.creditLimitKg50}
+                onChange={(e) => set("creditLimitKg50", e.target.value)}
               />
             </Field>
           </div>

@@ -173,7 +173,8 @@ model Customer {
   phone          String?      @db.VarChar(30)
   email          String?      @db.VarChar(120)
   npwp           String?      @db.VarChar(30)
-  creditLimit    Decimal      @default(0) @db.Decimal(16, 2)
+  creditLimitKg12  Int  @default(0)
+  creditLimitKg50  Int  @default(0)
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

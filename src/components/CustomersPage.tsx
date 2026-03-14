@@ -17,7 +17,9 @@ interface Customer {
   phone: string | null;
   email: string | null;
   address: string | null;
-  creditLimit: string;
+  creditLimitKg12: number;
+  creditLimitKg50: number;
+
   isActive: boolean;
   branch: Branch;
   createdAt: string;
@@ -293,7 +295,8 @@ export default function CustomersPage({
                     <td>{c.branch.code}</td>
                     <td>{c.phone ?? "—"}</td>
                     <td style={{ color: "#15803D", fontWeight: 600 }}>
-                      {fmtIDR(c.creditLimit)}
+                      {c.creditLimitKg12} tbg (12kg) / {c.creditLimitKg50} tbg
+                      (50kg)
                     </td>
                     <td>
                       <span className="status-badge">
