@@ -250,7 +250,7 @@ function EditModal({
   return (
     <>
       <div className="cd-ov" onClick={onClose} />
-      <div className="cd-modal">
+      <div className="cd-modal" onClick={(e) => e.stopPropagation()}>
         <div className="cd-mhd">
           <div className="cd-mtitle">Edit Customer</div>
           <button className="cd-mclose" onClick={onClose}>

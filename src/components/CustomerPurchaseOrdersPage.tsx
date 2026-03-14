@@ -84,7 +84,7 @@ interface CpoRow {
   notes: string | null;
   customer: Customer;
   createdBy: { name: string };
-  _count: { deliveryOrders: number };
+  _count?: { deliveryOrders: number };
 }
 interface DoRow {
   id: string;
@@ -653,7 +653,7 @@ function CpoDetailPanel({
           ["Fulfilled", fmt(po.fulfilledQty) + " / " + fmt(po.orderedQty)],
           ["Price/Unit", fmtIDR(po.pricePerUnit)],
           ["Total Value", fmtIDR(totalValue)],
-          ["DOs Issued", po._count.deliveryOrders + " order(s)"],
+          ["DOs Issued", (po._count?.deliveryOrders ?? 0) + " order(s)"],
           ["Created by", po.createdBy.name],
         ].map(([k, v]) => (
           <div key={k as string}>

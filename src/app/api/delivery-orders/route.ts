@@ -1,7 +1,4 @@
 // src/app/api/delivery-orders/route.ts
-// GET  /api/delivery-orders?branchId=&status=&poId=&search=&page=&limit=
-// POST /api/delivery-orders — create DO, MUST reference a valid SupplierPo id
-
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import prisma from "@/lib/prisma";
@@ -13,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const branchId = searchParams.get("branchId") ?? undefined;
-  const poId = searchParams.get("poId") ?? undefined;
+  const customerPoId = searchParams.get("customerPoId") ?? undefined;
   const search = searchParams.get("search") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "20"));
@@ -21,10 +18,8 @@ export async function GET(req: NextRequest) {
 
   const where: any = {};
   if (branchId) where.branchId = branchId;
+  if (customerPoId) where.customerPoId = customerPoId;
   if (statuses.length) where.status = { in: statuses };
-  // poId is stored in notes as "po:<id>" — filter via notes contains
-  if (poId) where.customerPoId = poId;
-
   if (search) {
     where.OR = [
       { doNumber: { contains: search, mode: "insensitive" } },
@@ -59,10 +54,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const errors: Record<string, string> = {};
 
-  // ── HARD RULE: DO cannot exist without a PO ──────────────────────────────
   if (!body.poId)
-    errors.poId = "A Purchase Order is required to create a Delivery Order.";
-
+    errors.poId = "A Customer PO is required to create a Delivery Order.";
   if (!body.branchId) errors.branchId = "Branch is required.";
   if (!body.customerId) errors.customerId = "Customer is required.";
   if (!body.doNumber?.trim()) errors.doNumber = "DO number is required.";
@@ -76,11 +69,11 @@ export async function POST(req: NextRequest) {
   if (Object.keys(errors).length)
     return NextResponse.json({ errors }, { status: 422 });
 
-  // Verify PO exists and is not cancelled/completed already
+  // Verify CustomerPo exists and is not cancelled
   const po = await prisma.customerPo.findUnique({ where: { id: body.poId } });
   if (!po)
     return NextResponse.json(
-      { errors: { poId: "Purchase order not found." } },
+      { errors: { poId: "Customer PO not found." } },
       { status: 404 },
     );
   if (po.status === "CANCELLED")
@@ -112,6 +105,7 @@ export async function POST(req: NextRequest) {
       data: {
         branchId: body.branchId,
         customerId: body.customerId,
+        customerPoId: body.poId,
         doNumber: body.doNumber.trim(),
         doDate: new Date(body.doDate + "T00:00:00.000Z"),
         cylinderSize: body.cylinderSize,
@@ -121,8 +115,6 @@ export async function POST(req: NextRequest) {
         status: "PENDING",
         driverName: body.driverName?.trim() || null,
         vehicleNo: body.vehicleNo?.trim() || null,
-        // Store poId in notes for soft-link (existing schema has no poId FK)
-        customerPoId: body.poId,
         notes: body.notes?.trim() || null,
         createdById: dbUser.id,
       },
@@ -133,7 +125,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Bump PO status to CONFIRMED if still SUBMITTED/DRAFT
+    // Bump CPO to CONFIRMED if still SUBMITTED/DRAFT
     if (po.status === "DRAFT" || po.status === "SUBMITTED") {
       await prisma.customerPo.update({
         where: { id: body.poId },

@@ -204,7 +204,11 @@ export default function AddEditCustomerModal({
   return (
     <>
       <div className="cd-ov" onClick={onClose} />
-      <div className="cd-modal" style={{ width: 560 }}>
+      <div
+        className="cd-modal"
+        style={{ width: 560 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="cd-mhd">
           <div className="cd-mtitle">

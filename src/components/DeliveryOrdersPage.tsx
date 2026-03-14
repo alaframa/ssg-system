@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type CylSize = "KG3" | "KG5_5" | "KG12" | "KG50";
+type CylSize = "KG12" | "KG50";
 type DoStatus =
   | "PENDING"
   | "IN_TRANSIT"
@@ -23,8 +23,6 @@ type PoStatus =
   | "CANCELLED";
 
 const CYL_LABELS: Record<CylSize, string> = {
-  KG3: "3 kg",
-  KG5_5: "5.5 kg",
   KG12: "12 kg",
   KG50: "50 kg",
 };
@@ -67,10 +65,12 @@ interface PoOption {
   poNumber: string;
   cylinderSize: CylSize;
   orderedQty: number;
-  receivedQty: number;
+  fulfilledQty: number;
   status: PoStatus;
   branch: Branch;
+  customer: { id: string; code: string; name: string };
 }
+
 interface DoRow {
   id: string;
   doNumber: string;
@@ -199,7 +199,7 @@ function CreateDoForm({
   useEffect(() => {
     setPoLoading(true);
     Promise.all([
-      fetch(`/api/purchase-orders?branchId=${branchId}&limit=200`).then((r) =>
+      fetch(`/api/customer-pos?branchId=${branchId}&limit=200`).then((r) =>
         r.json(),
       ),
       fetch(`/api/customers?branch=${branchId}&limit=500`).then((r) =>
@@ -229,7 +229,8 @@ function CreateDoForm({
       setForm((f) => ({
         ...f,
         cylinderSize: po.cylinderSize,
-        pricePerUnit: prices[po.cylinderSize],
+        pricePerUnit: prices[po.cylinderSize] ?? f.pricePerUnit,
+        customerId: po.customer?.id ?? f.customerId,
       }));
     }
   }, [form.poId, poOptions]);
@@ -262,7 +263,7 @@ function CreateDoForm({
   }
 
   const remainingQty = selectedPo
-    ? selectedPo.orderedQty - selectedPo.receivedQty
+    ? selectedPo.orderedQty - (selectedPo.fulfilledQty ?? 0)
     : null;
 
   return (
@@ -357,13 +358,14 @@ function CreateDoForm({
               Size: <b>{CYL_LABELS[selectedPo.cylinderSize]}</b>
             </span>
             <span>
-              Ordered: <b>{fmt(selectedPo.orderedQty)}</b>
+              Ordered: <b>{fmt(Number(selectedPo.orderedQty ?? 0))}</b>
             </span>
             <span>
-              Delivered so far: <b>{fmt(selectedPo.receivedQty)}</b>
+              Delivered so far:{" "}
+              <b>{fmt(Number(selectedPo.fulfilledQty ?? 0))}</b>
             </span>
-            <span style={{ color: remainingQty! > 0 ? "#15803D" : "#DC2626" }}>
-              Remaining: <b>{fmt(remainingQty!)}</b>
+            <span>
+              Remaining: <b>{fmt(Number(remainingQty ?? 0))}</b>
             </span>
           </div>
         )}

@@ -158,7 +158,13 @@ export default function CustomersPage({
           >
             📥 Import Excel
           </button>
-          <button className="btn-pri" onClick={() => setShowAdd(true)}>
+          <button
+            className="btn-pri"
+            onClick={() => {
+              setSelected(null);
+              setShowAdd(true);
+            }}
+          >
             + Add Customer
           </button>
         </div>
