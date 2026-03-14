@@ -43,17 +43,11 @@ const CYL_LABELS: Record<CylinderSize, string> = {
   KG12: "12 Kg",
   KG50: "50 Kg",
 };
-const CYL_COLORS: Record<...> = {
-  KG12: { text: "#D97706", bg: "rgba(217,119,6,0.08)", border: "rgba(217,119,6,0.22)" },
-  KG50: { text: "#7C3AED", bg: "rgba(124,58,237,0.08)", border: "rgba(124,58,237,0.22)" },
-};
-
 
 const CYL_COLORS: Record<
   CylinderSize,
   { text: string; bg: string; border: string }
 > = {
-  
   KG12: {
     text: "#D97706",
     bg: "rgba(217,119,6,0.08)",
@@ -957,7 +951,11 @@ export default function SuppliersPage() {
                           <input
                             type={type}
                             className="cd-inp"
-                            value={(profForm as Record<string, string>)[key]}
+                            value={
+                              (profForm as unknown as Record<string, string>)[
+                                key
+                              ]
+                            }
                             onChange={(e) =>
                               setProfForm((f) => ({
                                 ...f,

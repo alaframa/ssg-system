@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type CylSize = "KG3" | "KG5_5" | "KG12" | "KG50";
+type CylSize = "KG12" | "KG50";
 type PoStatus =
   | "DRAFT"
   | "SUBMITTED"
@@ -18,8 +18,6 @@ type PoStatus =
 type OrderChannel = "WHATSAPP" | "PHONE" | "WALK_IN" | "SALES_VISIT";
 
 const CYL_LABELS: Record<CylSize, string> = {
-  KG3: "3 kg",
-  KG5_5: "5.5 kg",
   KG12: "12 kg",
   KG50: "50 kg",
 };

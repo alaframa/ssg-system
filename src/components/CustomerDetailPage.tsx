@@ -280,7 +280,7 @@ function EditModal({
               { label: "NPWP", key: "npwp" },
               { label: "Credit Limit", key: "creditLimit", type: "number" },
             ] as const
-          ).map(({ label, key, type }) => (
+          ).map(({ label, key, type = "text" }) => (
             <div key={key} className="cd-fld">
               <label className="cd-flbl">{label}</label>
               <input

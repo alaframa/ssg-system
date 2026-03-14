@@ -1905,7 +1905,7 @@ async function main() {
   function findCust(name: string) {
     const n = norm(name);
     if (custLookup.has(n)) return custLookup.get(n);
-    for (const [k, v] of custLookup) {
+    for (const [k, v] of Array.from(custLookup)) {
       if (k.includes(n) || n.includes(k)) return v;
     }
     return undefined;
