@@ -71,6 +71,56 @@ function validate(form: CustomerFormData): Record<string, string> {
   return err;
 }
 
+// ─── Field wrapper — MUST be outside parent component to avoid remount on every render ───
+function Field({
+  label,
+  required,
+  children,
+  error,
+  hint,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+  error?: string;
+  hint?: string;
+}) {
+  return (
+    <div className="cd-fld">
+      <label className="cd-flbl">
+        {label}
+        {required && (
+          <span style={{ color: "var(--danger)", marginLeft: 3 }}>*</span>
+        )}
+      </label>
+      {children}
+      {error && (
+        <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>
+          ⚠ {error}
+        </div>
+      )}
+      {hint && !error && (
+        <div style={{ fontSize: 11, color: "var(--text-low)", marginTop: 3 }}>
+          {hint}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── inputStyle — MUST be outside parent component, takes errors as param ────
+function inputStyle(
+  errors: Record<string, string>,
+  key: string,
+): React.CSSProperties {
+  return errors[key]
+    ? {
+        borderColor: "var(--danger)",
+        boxShadow: "0 0 0 3px rgba(220,38,38,0.1)",
+      }
+    : {};
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AddEditCustomerModal({
   customer,
@@ -158,49 +208,7 @@ export default function AddEditCustomerModal({
     }
   }
 
-  // ─── Render helpers ──────────────────────────────────────────────────────────
-  const Field = ({
-    label,
-    required,
-    children,
-    error,
-    hint,
-  }: {
-    label: string;
-    required?: boolean;
-    children: React.ReactNode;
-    error?: string;
-    hint?: string;
-  }) => (
-    <div className="cd-fld">
-      <label className="cd-flbl">
-        {label}
-        {required && (
-          <span style={{ color: "var(--danger)", marginLeft: 3 }}>*</span>
-        )}
-      </label>
-      {children}
-      {error && (
-        <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>
-          ⚠ {error}
-        </div>
-      )}
-      {hint && !error && (
-        <div style={{ fontSize: 11, color: "var(--text-low)", marginTop: 3 }}>
-          {hint}
-        </div>
-      )}
-    </div>
-  );
-
-  const inputStyle = (key: string): React.CSSProperties =>
-    errors[key]
-      ? {
-          borderColor: "var(--danger)",
-          boxShadow: "0 0 0 3px rgba(220,38,38,0.1)",
-        }
-      : {};
-
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="cd-ov" onClick={onClose} />
@@ -228,7 +236,7 @@ export default function AddEditCustomerModal({
             <Field label="Branch" required error={errors.branchId}>
               <select
                 className="cd-inp"
-                style={inputStyle("branchId")}
+                style={inputStyle(errors, "branchId")}
                 value={form.branchId}
                 onChange={(e) => set("branchId", e.target.value)}
                 disabled={isEdit}
@@ -245,7 +253,7 @@ export default function AddEditCustomerModal({
             <Field label="Customer Type" required error={errors.customerType}>
               <select
                 className="cd-inp"
-                style={inputStyle("customerType")}
+                style={inputStyle(errors, "customerType")}
                 value={form.customerType}
                 onChange={(e) => set("customerType", e.target.value)}
               >
@@ -272,7 +280,7 @@ export default function AddEditCustomerModal({
           <Field label="Full Name" required error={errors.name}>
             <input
               className="cd-inp"
-              style={inputStyle("name")}
+              style={inputStyle(errors, "name")}
               placeholder="e.g. 1966 Coffee House"
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
@@ -287,7 +295,7 @@ export default function AddEditCustomerModal({
           >
             <input
               className="cd-inp"
-              style={inputStyle("phone")}
+              style={inputStyle(errors, "phone")}
               placeholder="0812xxxxxxx"
               value={form.phone}
               onChange={(e) => set("phone", e.target.value)}
@@ -299,7 +307,7 @@ export default function AddEditCustomerModal({
             <input
               type="email"
               className="cd-inp"
-              style={inputStyle("email")}
+              style={inputStyle(errors, "email")}
               placeholder="customer@example.com"
               value={form.email}
               onChange={(e) => set("email", e.target.value)}
@@ -319,7 +327,7 @@ export default function AddEditCustomerModal({
           >
             <textarea
               className="cd-inp"
-              style={{ ...inputStyle("address"), resize: "vertical" }}
+              style={{ ...inputStyle(errors, "address"), resize: "vertical" }}
               rows={3}
               placeholder="Full address…"
               value={form.address}
@@ -343,7 +351,7 @@ export default function AddEditCustomerModal({
               <input
                 type="number"
                 className="cd-inp"
-                style={inputStyle("creditLimit")}
+                style={inputStyle(errors, "creditLimit")}
                 placeholder="0"
                 min="0"
                 value={form.creditLimit}
