@@ -240,8 +240,6 @@ function CreateCpoForm({
   // Auto price by cylinder size
   useEffect(() => {
     const prices: Record<CylSize, string> = {
-      KG3: "52500",
-      KG5_5: "96250",
       KG12: "175500",
       KG50: "604700",
     };

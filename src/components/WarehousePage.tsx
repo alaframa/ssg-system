@@ -7,10 +7,8 @@
 import { useState, useEffect, useCallback } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type CylSize = "KG3" | "KG5_5" | "KG12" | "KG50";
+type CylSize = "KG12" | "KG50";
 const CYL_LABELS: Record<CylSize, string> = {
-  KG3: "3 kg",
-  KG5_5: "5.5 kg",
   KG12: "12 kg",
   KG50: "50 kg",
 };
@@ -408,150 +406,146 @@ export default function WarehousePage({
                     marginBottom: 32,
                   }}
                 >
-                  {(["KG12", "KG50", "KG3", "KG5_5"] as CylSize[]).map(
-                    (size) => {
-                      const row = stock.find((s) => s.cylinderSize === size);
-                      const quota = hmtQuota.find(
-                        (q) => q.cylinderSize === size,
-                      );
-                      const pct = quota
-                        ? Math.round(
-                            (quota.usedQty / Math.max(1, quota.quotaQty)) * 100,
-                          )
-                        : null;
-                      const warn = pct !== null && pct >= 90;
-                      return (
+                  {(["KG12", "KG50"] as CylSize[]).map((size) => {
+                    const row = stock.find((s) => s.cylinderSize === size);
+                    const quota = hmtQuota.find((q) => q.cylinderSize === size);
+                    const pct = quota
+                      ? Math.round(
+                          (quota.usedQty / Math.max(1, quota.quotaQty)) * 100,
+                        )
+                      : null;
+                    const warn = pct !== null && pct >= 90;
+                    return (
+                      <div
+                        key={size}
+                        style={{
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-md)",
+                          padding: 20,
+                          borderTop: `3px solid ${
+                            warn ? "var(--danger)" : "var(--accent)"
+                          }`,
+                        }}
+                      >
                         <div
-                          key={size}
                           style={{
-                            background: "var(--card)",
-                            border: "1px solid var(--border)",
-                            borderRadius: "var(--radius-md)",
-                            padding: 20,
-                            borderTop: `3px solid ${
-                              warn ? "var(--danger)" : "var(--accent)"
-                            }`,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "var(--text-low)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                            marginBottom: 12,
                           }}
                         >
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: "var(--text-low)",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.08em",
-                              marginBottom: 12,
-                            }}
-                          >
-                            {CYL_LABELS[size]}
-                          </div>
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr 1fr 1fr",
-                              gap: 8,
-                              marginBottom: 12,
-                            }}
-                          >
-                            {[
-                              {
-                                label: "Full",
-                                val: row?.fullQty ?? 0,
-                                color: "var(--accent)",
-                              },
-                              {
-                                label: "Empty",
-                                val: row?.emptyQty ?? 0,
-                                color: "var(--text-mid)",
-                              },
-                              {
-                                label: "Transit",
-                                val: row?.onTransitQty ?? 0,
-                                color: "#F59E0B",
-                              },
-                            ].map(({ label, val, color }) => (
-                              <div key={label} style={{ textAlign: "center" }}>
-                                <div
-                                  style={{
-                                    fontSize: 20,
-                                    fontWeight: 900,
-                                    color,
-                                    lineHeight: 1,
-                                  }}
-                                >
-                                  {fmt(val)}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 10,
-                                    color: "var(--text-low)",
-                                    marginTop: 2,
-                                  }}
-                                >
-                                  {label}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          {quota && (
-                            <div>
+                          {CYL_LABELS[size]}
+                        </div>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr 1fr",
+                            gap: 8,
+                            marginBottom: 12,
+                          }}
+                        >
+                          {[
+                            {
+                              label: "Full",
+                              val: row?.fullQty ?? 0,
+                              color: "var(--accent)",
+                            },
+                            {
+                              label: "Empty",
+                              val: row?.emptyQty ?? 0,
+                              color: "var(--text-mid)",
+                            },
+                            {
+                              label: "Transit",
+                              val: row?.onTransitQty ?? 0,
+                              color: "#F59E0B",
+                            },
+                          ].map(({ label, val, color }) => (
+                            <div key={label} style={{ textAlign: "center" }}>
                               <div
                                 style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
+                                  fontSize: 20,
+                                  fontWeight: 900,
+                                  color,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                {fmt(val)}
+                              </div>
+                              <div
+                                style={{
                                   fontSize: 10,
-                                  color: warn
-                                    ? "var(--danger)"
-                                    : "var(--text-low)",
-                                  marginBottom: 4,
+                                  color: "var(--text-low)",
+                                  marginTop: 2,
                                 }}
                               >
-                                <span>HMT Quota</span>
-                                <span>
-                                  {fmt(quota.usedQty)} / {fmt(quota.quotaQty)} (
-                                  {pct ?? 0}%)
-                                </span>
-                              </div>
-                              <div
-                                style={{
-                                  height: 5,
-                                  background: "var(--border)",
-                                  borderRadius: 3,
-                                  overflow: "hidden",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    height: "100%",
-                                    width: `${Math.min(100, pct ?? 0)}%`,
-                                    background: warn
-                                      ? "var(--danger)"
-                                      : "var(--accent)",
-                                    transition: "width 0.4s",
-                                    borderRadius: 3,
-                                  }}
-                                />
+                                {label}
                               </div>
                             </div>
-                          )}
-                          {row?.stockDate && (
+                          ))}
+                        </div>
+                        {quota && (
+                          <div>
                             <div
                               style={{
+                                display: "flex",
+                                justifyContent: "space-between",
                                 fontSize: 10,
-                                color: "var(--text-low)",
-                                marginTop: 8,
+                                color: warn
+                                  ? "var(--danger)"
+                                  : "var(--text-low)",
+                                marginBottom: 4,
                               }}
                             >
-                              Last update:{" "}
-                              {new Date(row.stockDate).toLocaleDateString(
-                                "id-ID",
-                              )}
+                              <span>HMT Quota</span>
+                              <span>
+                                {fmt(quota.usedQty)} / {fmt(quota.quotaQty)} (
+                                {pct ?? 0}%)
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      );
-                    },
-                  )}
+                            <div
+                              style={{
+                                height: 5,
+                                background: "var(--border)",
+                                borderRadius: 3,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: "100%",
+                                  width: `${Math.min(100, pct ?? 0)}%`,
+                                  background: warn
+                                    ? "var(--danger)"
+                                    : "var(--accent)",
+                                  transition: "width 0.4s",
+                                  borderRadius: 3,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {row?.stockDate && (
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "var(--text-low)",
+                              marginTop: 8,
+                            }}
+                          >
+                            Last update:{" "}
+                            {new Date(row.stockDate).toLocaleDateString(
+                              "id-ID",
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {stock.length === 0 && (

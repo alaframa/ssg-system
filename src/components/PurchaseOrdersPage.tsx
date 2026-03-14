@@ -364,8 +364,6 @@ function CreatePoForm({
           >
             {(
               Object.entries({
-                KG3: "3 kg",
-                KG5_5: "5.5 kg",
                 KG12: "12 kg",
                 KG50: "50 kg",
               }) as [CylSize, string][]

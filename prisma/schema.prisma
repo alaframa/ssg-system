@@ -22,8 +22,6 @@ enum BranchCode {
 }
 
 enum CylinderSize {
-  KG3
-  KG5_5
   KG12
   KG50
 }

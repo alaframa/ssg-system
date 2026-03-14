@@ -10,7 +10,8 @@ interface Branch {
 }
 interface CylinderHolding {
   id: string;
-  cylinderSize: "KG3" | "KG5_5" | "KG12" | "KG50";
+  cylinderSize: "KG12" | "KG50";
+
   heldQty: number;
   depositPerUnit: string;
   lastUpdated: string;
@@ -60,18 +61,6 @@ const TYPE_META = {
 } as const;
 
 const CYL_META = {
-  KG3: {
-    label: "3 Kg",
-    text: "#15803D",
-    bg: "rgba(21,128,61,0.08)",
-    border: "rgba(21,128,61,0.2)",
-  },
-  KG5_5: {
-    label: "5.5 Kg",
-    text: "#2563EB",
-    bg: "rgba(37,99,235,0.08)",
-    border: "rgba(37,99,235,0.2)",
-  },
   KG12: {
     label: "12 Kg",
     text: "#D97706",
@@ -84,9 +73,9 @@ const CYL_META = {
     bg: "rgba(124,58,237,0.08)",
     border: "rgba(124,58,237,0.2)",
   },
-} as const;
+};
 
-const CYL_ORDER = ["KG3", "KG5_5", "KG12", "KG50"];
+const CYL_ORDER = ["KG12", "KG50"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtIDR = (v: string | number) =>

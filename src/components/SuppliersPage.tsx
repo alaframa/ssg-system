@@ -35,32 +35,25 @@ interface Supplier {
   _count: { supplierPos: number };
 }
 
-type CylinderSize = "KG3" | "KG5_5" | "KG12" | "KG50";
+type CylinderSize = "KG12" | "KG50";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const CYL_SIZES: CylinderSize[] = ["KG3", "KG5_5", "KG12", "KG50"];
+const CYL_SIZES: CylinderSize[] = ["KG12", "KG50"];
 
 const CYL_LABELS: Record<CylinderSize, string> = {
-  KG3: "3 Kg",
-  KG5_5: "5.5 Kg",
   KG12: "12 Kg",
   KG50: "50 Kg",
 };
+const CYL_COLORS: Record<...> = {
+  KG12: { text: "#D97706", bg: "rgba(217,119,6,0.08)", border: "rgba(217,119,6,0.22)" },
+  KG50: { text: "#7C3AED", bg: "rgba(124,58,237,0.08)", border: "rgba(124,58,237,0.22)" },
+};
+
 
 const CYL_COLORS: Record<
   CylinderSize,
   { text: string; bg: string; border: string }
 > = {
-  KG3: {
-    text: "#15803D",
-    bg: "rgba(21,128,61,0.08)",
-    border: "rgba(21,128,61,0.22)",
-  },
-  KG5_5: {
-    text: "#2563EB",
-    bg: "rgba(37,99,235,0.08)",
-    border: "rgba(37,99,235,0.22)",
-  },
+  
   KG12: {
     text: "#D97706",
     bg: "rgba(217,119,6,0.08)",
