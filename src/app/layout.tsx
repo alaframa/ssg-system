@@ -3,6 +3,7 @@ import "./globals.css";
 import { Suspense } from "react";
 import NextAuthProvider from "@/components/NextAuthProvider";
 import ClientLayout from "@/components/ClientLayout";
+import { BranchProvider } from "@/lib/branch-context";
 
 export default function RootLayout({
   children,
@@ -46,7 +47,9 @@ export default function RootLayout({
               </div>
             }
           >
-            <ClientLayout>{children}</ClientLayout>
+            <BranchProvider>
+              <ClientLayout>{children}</ClientLayout>
+            </BranchProvider>
           </Suspense>
         </NextAuthProvider>
       </body>

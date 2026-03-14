@@ -1,18 +1,9 @@
-// src/app/(dashboard)/warehouse/page.tsx
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
+"use client";
 import WarehousePage from "@/components/WarehousePage";
+import { useBranch } from "@/lib/branch-context";
 
-export const metadata = { title: "Warehouse — SSG" };
-
-export default async function Page() {
-  const session = await getServerSession();
-  if (!session) redirect("/login");
-
-  // Get first branch as default (SBY)
-  const branch = await prisma.branch.findFirst({ orderBy: { code: "asc" } });
-  if (!branch) return <div>No branches found. Run seed first.</div>;
-
-  return <WarehousePage activeBranchId={branch.id} />;
+export default function Page() {
+  const { activeBranchId } = useBranch();
+  if (!activeBranchId) return null;
+  return <WarehousePage activeBranchId={activeBranchId} />;
 }

@@ -65,8 +65,10 @@ const fmtIDR = (val: string) =>
 
 export default function CustomersPage({
   onNavigate,
+  onAddNew,
 }: {
   onNavigate?: (id: string) => void;
+  onAddNew?: () => void;
 }) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -162,10 +164,7 @@ export default function CustomersPage({
           </button>
           <button
             className="btn-pri"
-            onClick={() => {
-              setSelected(null);
-              setShowAdd(true);
-            }}
+            onClick={() => (onAddNew ? onAddNew() : setShowAdd(true))}
           >
             + Add Customer
           </button>
