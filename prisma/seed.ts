@@ -1,38 +1,27 @@
 // prisma/seed.ts
-// SSG Gas Distribution System — Full Seed (updated for new schema)
-// Seeds:
-//   ✅ 1 admin user
-//   ✅ 2 branches (SBY, YOG)
-//   ✅ 1 supplier (PT. Arsygas Nix Indonesia / NIX)
-//   ✅ HMT Quotas — March 2026 (SBY + YOG, KG12 + KG50)
-//   ✅ 384 real customers (217 SBY + 167 YOG)
-//   ✅ GasbackLedger — final March 2026 balance per customer
-//   ✅ CustomerCylinderHolding — end-of-March cylinder holdings
-//   ✅ CustomerPo + DeliveryOrder — real March 2026 delivery data (SBY)
-
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter } as any);
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function norm(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
-function makeCode(branch: string, name: string, seq: number): string {
-  const prefix = branch === "SBY" ? "SBY" : "YOG";
+function makeCode(branch: string, name: string, seq: number) {
   const slug = name
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 6)
     .padEnd(3, "X");
-  return `${prefix}-${slug}-${String(seq).padStart(4, "0")}`;
+  return `${branch}-${slug}-${String(seq).padStart(4, "0")}`;
 }
 
-// ─── Customer Data ────────────────────────────────────────────────────────────
+// ── CUSTOMER DATA (217 SBY + 167 YOG) ─────────────────────────────────────
+// gasback = balance as of March 12, 2026
+// kg12/kg50 = cylinders held as of March 12, 2026
 const CUSTOMER_DATA: {
   name: string;
   branch: "SBY" | "YOG";
@@ -774,8 +763,7 @@ const CUSTOMER_DATA: {
   },
 ];
 
-// ─── Delivery Data ────────────────────────────────────────────────────────────
-// Each entry = 1 CustomerPo + 1 DeliveryOrder (real March 2026 SBY data)
+// ── DELIVERY ORDERS (164 SBY, March 2–12 2026) ────────────────────────────
 const DELIVERY_ORDERS: {
   date: string;
   noPo: string;
@@ -1738,11 +1726,10 @@ const DELIVERY_ORDERS: {
   },
 ];
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("🌱 Starting SSG seed...\n");
 
-  // ── 1. Admin user ──────────────────────────────────────────────────────────
+  // 1. Admin user
   const hashed = await bcrypt.hash("admin123", 10);
   const admin = await prisma.user.upsert({
     where: { email: "admin@ssg.com" },
@@ -1755,9 +1742,8 @@ async function main() {
       isActive: true,
     },
   });
-  console.log(`✅ User: ${admin.email}`);
 
-  // ── 2. Branches ────────────────────────────────────────────────────────────
+  // 2. Branches
   const sby = await prisma.branch.upsert({
     where: { code: "SBY" },
     update: {},
@@ -1778,9 +1764,8 @@ async function main() {
       phone: "",
     },
   });
-  console.log(`✅ Branches: ${sby.name}, ${yog.name}`);
 
-  // ── 3. Supplier ────────────────────────────────────────────────────────────
+  // 3. Supplier
   const supplier = await prisma.supplier.upsert({
     where: { code: "NIX" },
     update: {},
@@ -1794,9 +1779,8 @@ async function main() {
       isActive: true,
     },
   });
-  console.log(`✅ Supplier: ${supplier.name}`);
 
-  // ── 4. HMT Quotas — March 2026 ─────────────────────────────────────────────
+  // 4. HMT Quotas
   const hmtEntries = [
     { branch: sby, size: "KG12" as const, qty: 1900, price: 158_000 },
     { branch: sby, size: "KG50" as const, qty: 723, price: 550_000 },
@@ -1827,43 +1811,34 @@ async function main() {
       },
     });
   }
-  console.log(`✅ HMT Quotas: 4 entries`);
 
-  // ── 5. Customers ───────────────────────────────────────────────────────────
+  // 5. Customers + gasback + holdings
   const branchMap: Record<string, typeof sby> = { SBY: sby, YOG: yog };
   const seqMap: Record<string, number> = {};
-  const savedCustomers: { id: string; name: string; branch: string }[] = [];
-  let custCreated = 0;
+  const savedCustomers: { id: string; name: string }[] = [];
+  let custCreated = 0,
+    gbCreated = 0,
+    holdCreated = 0;
 
   for (const c of CUSTOMER_DATA) {
     const branch = branchMap[c.branch];
-    const seqKey = c.branch;
-    seqMap[seqKey] = (seqMap[seqKey] ?? 0) + 1;
-    const code = makeCode(c.branch, c.name, seqMap[seqKey]);
+    seqMap[c.branch] = (seqMap[c.branch] ?? 0) + 1;
+    const code = makeCode(c.branch, c.name, seqMap[c.branch]);
 
-    const existing = await prisma.customer.findFirst({
-      where: { name: c.name, branchId: branch.id },
-    });
-    if (existing) {
-      savedCustomers.push({
-        id: existing.id,
-        name: existing.name,
-        branch: c.branch,
+    let cust = await prisma.customer.findUnique({ where: { code } });
+    if (!cust) {
+      cust = await prisma.customer.create({
+        data: {
+          branchId: branch.id,
+          code,
+          name: c.name,
+          customerType: c.type,
+          isActive: true,
+        },
       });
-      continue;
+      custCreated++;
     }
-
-    const cust = await prisma.customer.create({
-      data: {
-        branchId: branch.id,
-        code,
-        name: c.name,
-        customerType: c.type,
-        isActive: true,
-      },
-    });
-    savedCustomers.push({ id: cust.id, name: cust.name, branch: c.branch });
-    custCreated++;
+    savedCustomers.push({ id: cust.id, name: c.name });
 
     // Gasback ledger
     if (c.gasback > 0) {
@@ -1878,10 +1853,11 @@ async function main() {
           runningBalance: c.gasback,
           refType: "ADJ",
           txDate: new Date("2026-03-01"),
-          notes: "Opening gasback balance — seeded from March 2026 data",
+          notes: "Opening balance Mar 2026",
           createdById: admin.id,
         },
       });
+      gbCreated++;
     }
 
     // Cylinder holdings
@@ -1901,6 +1877,7 @@ async function main() {
           depositPerUnit: 0,
         },
       });
+      holdCreated++;
     }
     if (c.kg50 > 0) {
       await prisma.customerCylinderHolding.upsert({
@@ -1918,19 +1895,14 @@ async function main() {
           depositPerUnit: 0,
         },
       });
+      holdCreated++;
     }
   }
-  console.log(
-    `✅ Customers: ${custCreated} created (${savedCustomers.length} total)`,
-  );
 
-  // ── 6. CustomerPo + DeliveryOrder (real SBY March 2026 data) ───────────────
-  // Fuzzy customer lookup
+  // 6. Delivery Orders
   const custLookup = new Map<string, string>();
-  for (const c of savedCustomers) {
-    custLookup.set(norm(c.name), c.id);
-  }
-  function findCustomer(name: string): string | undefined {
+  for (const c of savedCustomers) custLookup.set(norm(c.name), c.id);
+  function findCust(name: string) {
     const n = norm(name);
     if (custLookup.has(n)) return custLookup.get(n);
     for (const [k, v] of custLookup) {
@@ -1939,115 +1911,69 @@ async function main() {
     return undefined;
   }
 
-  let cpoCreated = 0,
-    doCreated = 0,
-    skipped = 0;
-
+  let doCreated = 0,
+    doSkipped = 0,
+    doSeq = 0;
   for (const d of DELIVERY_ORDERS) {
-    const custId = findCustomer(d.customer);
+    const custId = findCust(d.customer);
     if (!custId) {
-      skipped++;
+      doSkipped++;
       continue;
     }
 
-    // Determine primary cylinder size (whichever is ordered)
-    const hasKg12 = d.rel12 > 0;
-    const hasKg50 = d.rel50 > 0;
-
-    // If order has both sizes, create 2 CPO+DO pairs; otherwise 1
-    const entries: { size: "KG12" | "KG50"; qty: number; delivered: number }[] =
-      [];
-    if (hasKg12)
-      entries.push({ size: "KG12", qty: d.rel12, delivered: d.rel12 });
-    if (hasKg50)
-      entries.push({ size: "KG50", qty: d.rel50, delivered: d.rel50 });
-    if (!entries.length) {
-      skipped++;
+    const sizes: { size: "KG12" | "KG50"; out: number; in_: number }[] = [];
+    if (d.rel12 > 0 || d.rec12 > 0)
+      sizes.push({ size: "KG12", out: d.rel12, in_: d.rec12 });
+    if (d.rel50 > 0 || d.rec50 > 0)
+      sizes.push({ size: "KG50", out: d.rel50, in_: d.rec50 });
+    if (!sizes.length) {
+      doSkipped++;
       continue;
     }
 
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const suffix = entries.length > 1 ? `-${e.size}` : "";
-      const poNum = `${d.noPo}${suffix}`;
-      const doNum = `DO-${d.noSj || d.noPo}${suffix}`.replace(/\//g, "-");
-      const price = e.size === "KG12" ? 175_500 : 604_700;
-      const poDate = new Date(d.date + "T00:00:00.000Z");
-
+    for (const s of sizes) {
+      doSeq++;
+      const doNumber = `DO-SBY-${d.date.replace(/-/g, "")}-${String(doSeq).padStart(4, "0")}`;
       try {
-        // Check for duplicate poNumber
-        const dupCpo = await prisma.customerPo.findUnique({
-          where: { poNumber: poNum },
-        });
-        if (dupCpo) {
-          skipped++;
-          continue;
-        }
-
-        // Create CustomerPo (customer's order to SSG)
-        const cpo = await prisma.customerPo.create({
-          data: {
-            branchId: sby.id,
-            customerId: custId,
-            poNumber: poNum,
-            poDate,
-            cylinderSize: e.size,
-            orderedQty: e.qty,
-            confirmedQty: e.qty,
-            fulfilledQty: e.delivered,
-            pricePerUnit: price,
-            status: "COMPLETED",
-            orderChannel: "WHATSAPP",
-            notes: d.noSj
-              ? `SJ: ${d.noSj}${d.notes ? " | " + d.notes : ""}`
-              : d.notes || null,
-            createdById: admin.id,
-          },
-        });
-        cpoCreated++;
-
-        // Check for duplicate doNumber
-        const dupDo = await prisma.deliveryOrder.findUnique({
-          where: { doNumber: doNum },
-        });
-        if (dupDo) continue;
-
-        // Create DeliveryOrder linked to CustomerPo
         await prisma.deliveryOrder.create({
           data: {
             branchId: sby.id,
             customerId: custId,
-            customerPoId: cpo.id,
-            doNumber: doNum,
-            doDate: poDate,
-            cylinderSize: e.size,
-            orderedQty: e.qty,
-            deliveredQty: e.delivered,
-            pricePerUnit: price,
+            createdById: admin.id,
+            doNumber,
+            doDate: new Date(d.date),
+            cylinderSize: s.size,
+            orderedQty: s.out,
+            deliveredQty: s.out,
+            pricePerUnit: s.size === "KG12" ? 158000 : 550000,
             status: "DELIVERED",
             driverName: d.driver || null,
-            notes: d.notes || null,
-            deliveredAt: poDate,
-            createdById: admin.id,
+            deliveredAt: new Date(d.date + "T07:00:00Z"),
+            notes:
+              [
+                d.noPo ? `PO: ${d.noPo}` : "",
+                d.noSj ? `SJ: ${d.noSj}` : "",
+                d.notes,
+              ]
+                .filter(Boolean)
+                .join(" | ") || null,
           },
         });
         doCreated++;
       } catch {
-        skipped++;
+        doSkipped++;
       }
     }
   }
-  console.log(`✅ Customer POs: ${cpoCreated} created`);
-  console.log(`✅ Delivery Orders: ${doCreated} created, ${skipped} skipped`);
 
-  // ── Summary ────────────────────────────────────────────────────────────────
   console.log(`
 🎉 Seed complete!
-   Login:          admin@ssg.com / admin123
-   Customers:      ${savedCustomers.length} (SBY + YOG)
-   Customer POs:   ${cpoCreated} (real March 2026 SBY orders)
-   Delivery Orders:${doCreated} (linked to Customer POs)
-   HMT Quotas:     4 entries (Mar 2026)
+   Login:     admin@ssg.com / admin123
+   Customers: ${custCreated} (217 SBY + 167 YOG)
+   Gasback:   ${gbCreated} ledger entries
+   Holdings:  ${holdCreated} cylinder records
+   HMT Quota: 4 entries
+   Deliveries: ${doCreated} DO rows (${doSkipped} skipped)
   `);
 }
 
