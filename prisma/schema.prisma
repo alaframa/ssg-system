@@ -1,6 +1,7 @@
 // prisma/schema.prisma
-// SSG Gas Distribution System — Sprint 1 Schema
+// SSG Gas Distribution System
 // Branches: Surabaya & Yogyakarta | Supplier: PT Arsygas Nix Indonesia
+// Updated: Added CustomerPo (customer orders TO SSG)
 
 generator client {
   provider = "prisma-client-js"
@@ -8,8 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-
- 
+  
 }
 
 // ─────────────────────────────────────────────
@@ -65,8 +65,8 @@ enum ReconciliationStatus {
 }
 
 enum GasbackTxType {
-  CREDIT     // cylinder deposit received
-  DEBIT      // cylinder returned / claimed
+  CREDIT      // cylinder deposit received
+  DEBIT       // cylinder returned / claimed
   ADJUSTMENT
 }
 
@@ -77,6 +77,13 @@ enum UserRole {
   SALES_STAFF
   FINANCE
   READONLY
+}
+
+enum OrderChannel {
+  WHATSAPP
+  PHONE
+  WALK_IN
+  SALES_VISIT
 }
 
 // ─────────────────────────────────────────────
@@ -92,10 +99,10 @@ model Branch {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  // relations
   users                  User[]
   customers              Customer[]
   supplierPos            SupplierPo[]
+  customerPos            CustomerPo[]
   deliveryOrders         DeliveryOrder[]
   inboundReceivings      InboundReceiving[]
   emptyReturns           EmptyReturn[]
@@ -123,7 +130,6 @@ model Supplier {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // relations
   supplierHmtQuotas SupplierHmtQuota[]
   supplierPos       SupplierPo[]
 
@@ -132,8 +138,6 @@ model Supplier {
 
 // ─────────────────────────────────────────────
 // 3. SUPPLIER_HMT_QUOTA
-//    HMT = Harga Mulut Tambang (govt. mandated
-//    allocation quota per branch per cylinder size)
 // ─────────────────────────────────────────────
 
 model SupplierHmtQuota {
@@ -141,9 +145,9 @@ model SupplierHmtQuota {
   supplierId     String
   branchId       String
   cylinderSize   CylinderSize
-  periodMonth    Int          // 1–12
+  periodMonth    Int
   periodYear     Int
-  quotaQty       Int          // allocated cylinders
+  quotaQty       Int
   usedQty        Int          @default(0)
   pricePerUnit   Decimal      @db.Decimal(14, 2)
   createdAt      DateTime     @default(now())
@@ -176,7 +180,8 @@ model Customer {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  branch                 Branch                  @relation(fields: [branchId], references: [id])
+  branch                 Branch                    @relation(fields: [branchId], references: [id])
+  customerPos            CustomerPo[]
   deliveryOrders         DeliveryOrder[]
   cylinderHoldings       CustomerCylinderHolding[]
   gasbackLedgers         GasbackLedger[]
@@ -188,29 +193,29 @@ model Customer {
 }
 
 // ─────────────────────────────────────────────
-// 5. SUPPLIER_PO  (Purchase Order to supplier)
+// 5. SUPPLIER_PO  (SSG orders FROM supplier)
 // ─────────────────────────────────────────────
 
 model SupplierPo {
-  id             String     @id @default(cuid())
+  id             String       @id @default(cuid())
   branchId       String
   supplierId     String
-  poNumber       String     @unique @db.VarChar(40)
-  poDate         DateTime   @db.Date
+  poNumber       String       @unique @db.VarChar(40)
+  poDate         DateTime     @db.Date
   cylinderSize   CylinderSize
   orderedQty     Int
-  confirmedQty   Int        @default(0)
-  receivedQty    Int        @default(0)
-  pricePerUnit   Decimal    @db.Decimal(14, 2)
-  status         PoStatus   @default(DRAFT)
-  notes          String?    @db.Text
+  confirmedQty   Int          @default(0)
+  receivedQty    Int          @default(0)
+  pricePerUnit   Decimal      @db.Decimal(14, 2)
+  status         PoStatus     @default(DRAFT)
+  notes          String?      @db.Text
   createdById    String
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   branch            Branch             @relation(fields: [branchId], references: [id])
   supplier          Supplier           @relation(fields: [supplierId], references: [id])
-  createdBy         User               @relation(fields: [createdById], references: [id])
+  createdBy         User               @relation("SupplierPoCreatedBy", fields: [createdById], references: [id])
   inboundReceivings InboundReceiving[]
 
   @@index([branchId, status])
@@ -219,13 +224,48 @@ model SupplierPo {
 }
 
 // ─────────────────────────────────────────────
-// 6. DELIVERY_ORDER  (outbound to customer)
+// 6. CUSTOMER_PO  (Customer orders TO SSG)
+//    Via WhatsApp, phone, walk-in, sales visit
+// ─────────────────────────────────────────────
+
+model CustomerPo {
+  id             String       @id @default(cuid())
+  branchId       String
+  customerId     String
+  poNumber       String       @unique @db.VarChar(40)
+  poDate         DateTime     @db.Date
+  cylinderSize   CylinderSize
+  orderedQty     Int
+  confirmedQty   Int          @default(0)
+  fulfilledQty   Int          @default(0)   // total delivered across all DOs
+  pricePerUnit   Decimal      @db.Decimal(14, 2)
+  status         PoStatus     @default(SUBMITTED)
+  orderChannel   OrderChannel @default(WHATSAPP)
+  notes          String?      @db.Text
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  branch         Branch          @relation(fields: [branchId], references: [id])
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  createdBy      User            @relation("CustomerPoCreatedBy", fields: [createdById], references: [id])
+  deliveryOrders DeliveryOrder[]
+
+  @@index([branchId, status])
+  @@index([customerId])
+  @@index([poDate])
+  @@map("customer_po")
+}
+
+// ─────────────────────────────────────────────
+// 7. DELIVERY_ORDER  (outbound to customer)
 // ─────────────────────────────────────────────
 
 model DeliveryOrder {
   id             String     @id @default(cuid())
   branchId       String
   customerId     String
+  customerPoId   String?    // link to CustomerPo (required going forward)
   doNumber       String     @unique @db.VarChar(40)
   doDate         DateTime   @db.Date
   cylinderSize   CylinderSize
@@ -241,29 +281,31 @@ model DeliveryOrder {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  branch     Branch   @relation(fields: [branchId], references: [id])
-  customer   Customer @relation(fields: [customerId], references: [id])
-  createdBy  User     @relation(fields: [createdById], references: [id])
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  customerPo  CustomerPo? @relation(fields: [customerPoId], references: [id])
+  createdBy   User        @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id])
 
   @@index([branchId, status])
   @@index([customerId])
+  @@index([customerPoId])
   @@index([doDate])
   @@map("delivery_order")
 }
 
 // ─────────────────────────────────────────────
-// 7. INBOUND_RECEIVING  (goods receipt from supplier)
+// 8. INBOUND_RECEIVING  (goods receipt from supplier)
 // ─────────────────────────────────────────────
 
 model InboundReceiving {
   id             String       @id @default(cuid())
   branchId       String
   supplierPoId   String
-  grNumber       String       @unique @db.VarChar(40)  // Good Receipt number
+  grNumber       String       @unique @db.VarChar(40)
   receivedDate   DateTime     @db.Date
   cylinderSize   CylinderSize
   receivedQty    Int
-  goodQty        Int          // pass QC
+  goodQty        Int
   rejectQty      Int          @default(0)
   notes          String?      @db.Text
   receivedById   String
@@ -272,7 +314,7 @@ model InboundReceiving {
 
   branch      Branch     @relation(fields: [branchId], references: [id])
   supplierPo  SupplierPo @relation(fields: [supplierPoId], references: [id])
-  receivedBy  User       @relation(fields: [receivedById], references: [id])
+  receivedBy  User       @relation("InboundReceivedBy", fields: [receivedById], references: [id])
 
   @@index([branchId, receivedDate])
   @@index([supplierPoId])
@@ -280,7 +322,7 @@ model InboundReceiving {
 }
 
 // ─────────────────────────────────────────────
-// 8. EMPTY_RETURN  (empty cylinders returned from customer)
+// 9. EMPTY_RETURN
 // ─────────────────────────────────────────────
 
 model EmptyReturn {
@@ -290,22 +332,22 @@ model EmptyReturn {
   returnDate     DateTime     @db.Date
   cylinderSize   CylinderSize
   returnedQty    Int
-  sourceType     String       @db.VarChar(20)  // 'CUSTOMER' | 'DRIVER' | 'DEPOT'
-  sourceRef      String?      @db.VarChar(100) // customer code / driver name
+  sourceType     String       @db.VarChar(20)   // CUSTOMER | DRIVER | DEPOT
+  sourceRef      String?      @db.VarChar(100)
   notes          String?      @db.Text
   recordedById   String
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   branch      Branch @relation(fields: [branchId], references: [id])
-  recordedBy  User   @relation(fields: [recordedById], references: [id])
+  recordedBy  User   @relation("EmptyReturnRecordedBy", fields: [recordedById], references: [id])
 
   @@index([branchId, returnDate])
   @@map("empty_return")
 }
 
 // ─────────────────────────────────────────────
-// 9. CYLINDER_WRITEOFF
+// 10. CYLINDER_WRITEOFF
 // ─────────────────────────────────────────────
 
 model CylinderWriteoff {
@@ -316,7 +358,7 @@ model CylinderWriteoff {
   cylinderSize   CylinderSize
   qty            Int
   reason         WriteoffReason
-  serialNumbers  String?        @db.Text  // comma-separated or JSON array
+  serialNumbers  String?        @db.Text
   approvedById   String?
   notes          String?        @db.Text
   createdById    String
@@ -324,15 +366,15 @@ model CylinderWriteoff {
   updatedAt      DateTime       @updatedAt
 
   branch      Branch @relation(fields: [branchId], references: [id])
-  createdBy   User   @relation("WriteoffCreatedBy", fields: [createdById], references: [id])
-  approvedBy  User?  @relation("WriteoffApprovedBy", fields: [approvedById], references: [id])
+  createdBy   User   @relation("WriteoffCreatedBy",   fields: [createdById],   references: [id])
+  approvedBy  User?  @relation("WriteoffApprovedBy",  fields: [approvedById],  references: [id])
 
   @@index([branchId, writeoffDate])
   @@map("cylinder_writeoff")
 }
 
 // ─────────────────────────────────────────────
-// 10. WAREHOUSE_STOCK  (running balance snapshot)
+// 11. WAREHOUSE_STOCK
 // ─────────────────────────────────────────────
 
 model WarehouseStock {
@@ -340,9 +382,9 @@ model WarehouseStock {
   branchId       String
   cylinderSize   CylinderSize
   stockDate      DateTime     @db.Date
-  fullQty        Int          @default(0)  // filled cylinders on hand
-  emptyQty       Int          @default(0)  // empty cylinders on hand
-  onTransitQty   Int          @default(0)  // en-route to customers
+  fullQty        Int          @default(0)
+  emptyQty       Int          @default(0)
+  onTransitQty   Int          @default(0)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -354,9 +396,7 @@ model WarehouseStock {
 }
 
 // ─────────────────────────────────────────────
-// 11. CUSTOMER_CYLINDER_HOLDING
-//     Tracks how many cylinders a customer
-//     currently holds (not yet returned)
+// 12. CUSTOMER_CYLINDER_HOLDING
 // ─────────────────────────────────────────────
 
 model CustomerCylinderHolding {
@@ -364,7 +404,7 @@ model CustomerCylinderHolding {
   customerId     String
   cylinderSize   CylinderSize
   heldQty        Int          @default(0)
-  depositPerUnit Decimal      @db.Decimal(14, 2) @default(0)
+  depositPerUnit Decimal      @default(0) @db.Decimal(14, 2)
   lastUpdated    DateTime     @default(now())
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -377,9 +417,7 @@ model CustomerCylinderHolding {
 }
 
 // ─────────────────────────────────────────────
-// 12. GASBACK_LEDGER
-//     Running ledger for customer deposit/gasback
-//     balance (credit when deposit paid, debit on return)
+// 13. GASBACK_LEDGER
 // ─────────────────────────────────────────────
 
 model GasbackLedger {
@@ -391,15 +429,15 @@ model GasbackLedger {
   amountPerUnit  Decimal       @db.Decimal(14, 2)
   totalAmount    Decimal       @db.Decimal(16, 2)
   runningBalance Decimal       @db.Decimal(16, 2)
-  refType        String?       @db.VarChar(40)  // 'DO' | 'RETURN' | 'CLAIM' | 'ADJ'
-  refId          String?       // FK to source document id
+  refType        String?       @db.VarChar(40)
+  refId          String?
   txDate         DateTime      @db.Date
   notes          String?       @db.Text
   createdById    String
   createdAt      DateTime      @default(now())
 
   customer   Customer @relation(fields: [customerId], references: [id])
-  createdBy  User     @relation(fields: [createdById], references: [id])
+  createdBy  User     @relation("GasbackLedgerCreatedBy", fields: [createdById], references: [id])
 
   @@index([customerId, txDate])
   @@index([refType, refId])
@@ -407,29 +445,28 @@ model GasbackLedger {
 }
 
 // ─────────────────────────────────────────────
-// 13. GASBACK_CLAIM
-//     When a customer claims their deposit back
+// 14. GASBACK_CLAIM
 // ─────────────────────────────────────────────
 
 model GasbackClaim {
-  id           String       @id @default(cuid())
-  customerId   String
-  claimNumber  String       @unique @db.VarChar(40)
-  claimDate    DateTime     @db.Date
-  cylinderSize CylinderSize
-  claimedQty   Int
-  amountPerUnit Decimal     @db.Decimal(14, 2)
-  totalClaimed Decimal      @db.Decimal(16, 2)
-  isPaid       Boolean      @default(false)
-  paidAt       DateTime?
-  paymentRef   String?      @db.VarChar(100)
-  notes        String?      @db.Text
-  createdById  String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id            String       @id @default(cuid())
+  customerId    String
+  claimNumber   String       @unique @db.VarChar(40)
+  claimDate     DateTime     @db.Date
+  cylinderSize  CylinderSize
+  claimedQty    Int
+  amountPerUnit Decimal      @db.Decimal(14, 2)
+  totalClaimed  Decimal      @db.Decimal(16, 2)
+  isPaid        Boolean      @default(false)
+  paidAt        DateTime?
+  paymentRef    String?      @db.VarChar(100)
+  notes         String?      @db.Text
+  createdById   String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   customer   Customer @relation(fields: [customerId], references: [id])
-  createdBy  User     @relation(fields: [createdById], references: [id])
+  createdBy  User     @relation("GasbackClaimCreatedBy", fields: [createdById], references: [id])
 
   @@index([customerId])
   @@index([claimDate])
@@ -437,28 +474,26 @@ model GasbackClaim {
 }
 
 // ─────────────────────────────────────────────
-// 14. MONTHLY_RECON
-//     End-of-month cylinder reconciliation per
-//     branch per cylinder size
+// 15. MONTHLY_RECON
 // ─────────────────────────────────────────────
 
 model MonthlyRecon {
   id               String               @id @default(cuid())
   branchId         String
-  periodMonth      Int                  // 1–12
+  periodMonth      Int
   periodYear       Int
   cylinderSize     CylinderSize
   openingFull      Int                  @default(0)
   openingEmpty     Int                  @default(0)
-  inboundFull      Int                  @default(0)  // from supplier
-  outboundFull     Int                  @default(0)  // delivered to customers
-  returnedEmpty    Int                  @default(0)  // empty returns received
+  inboundFull      Int                  @default(0)
+  outboundFull     Int                  @default(0)
+  returnedEmpty    Int                  @default(0)
   writeoffQty      Int                  @default(0)
   closingFull      Int                  @default(0)
   closingEmpty     Int                  @default(0)
-  systemFull       Int                  @default(0)  // calculated from WarehouseStock
+  systemFull       Int                  @default(0)
   systemEmpty      Int                  @default(0)
-  varianceFull     Int                  @default(0)  // closingFull - systemFull
+  varianceFull     Int                  @default(0)
   varianceEmpty    Int                  @default(0)
   status           ReconciliationStatus @default(DRAFT)
   approvedById     String?
@@ -468,7 +503,7 @@ model MonthlyRecon {
   updatedAt        DateTime             @updatedAt
 
   branch      Branch @relation(fields: [branchId], references: [id])
-  approvedBy  User?  @relation(fields: [approvedById], references: [id])
+  approvedBy  User?  @relation("MonthlyReconApprovedBy", fields: [approvedById], references: [id])
 
   @@unique([branchId, cylinderSize, periodMonth, periodYear])
   @@index([branchId, periodYear, periodMonth])
@@ -476,15 +511,15 @@ model MonthlyRecon {
 }
 
 // ─────────────────────────────────────────────
-// 15. USER  (NextAuth compatible)
+// 16. USER
 // ─────────────────────────────────────────────
 
 model User {
   id             String    @id @default(cuid())
-  branchId       String?   // null = super admin (all branches)
+  branchId       String?
   email          String    @unique @db.VarChar(200)
   name           String    @db.VarChar(120)
-  hashedPassword String?   @db.Text  // null if OAuth-only
+  hashedPassword String?   @db.Text
   role           UserRole  @default(READONLY)
   isActive       Boolean   @default(true)
   emailVerified  DateTime?
@@ -492,21 +527,20 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  // NextAuth tables
-  accounts       Account[]
-  sessions       Session[]
+  accounts  Account[]
+  sessions  Session[]
 
-  // App relations
-  branch              Branch?            @relation(fields: [branchId], references: [id])
-  createdSupplierPos  SupplierPo[]
-  createdDos          DeliveryOrder[]
-  inboundReceivings   InboundReceiving[]
-  emptyReturns        EmptyReturn[]
-  writeoffsCreated    CylinderWriteoff[] @relation("WriteoffCreatedBy")
-  writeoffsApproved   CylinderWriteoff[] @relation("WriteoffApprovedBy")
-  gasbackLedgers      GasbackLedger[]
-  gasbackClaims       GasbackClaim[]
-  monthlyReconsApproved MonthlyRecon[]
+  branch                Branch?            @relation(fields: [branchId], references: [id])
+  createdSupplierPos    SupplierPo[]       @relation("SupplierPoCreatedBy")
+  createdCustomerPos    CustomerPo[]       @relation("CustomerPoCreatedBy")
+  createdDos            DeliveryOrder[]    @relation("DeliveryOrderCreatedBy")
+  inboundReceivings     InboundReceiving[] @relation("InboundReceivedBy")
+  emptyReturns          EmptyReturn[]      @relation("EmptyReturnRecordedBy")
+  writeoffsCreated      CylinderWriteoff[] @relation("WriteoffCreatedBy")
+  writeoffsApproved     CylinderWriteoff[] @relation("WriteoffApprovedBy")
+  gasbackLedgers        GasbackLedger[]    @relation("GasbackLedgerCreatedBy")
+  gasbackClaims         GasbackClaim[]     @relation("GasbackClaimCreatedBy")
+  monthlyReconsApproved MonthlyRecon[]     @relation("MonthlyReconApprovedBy")
 
   @@index([branchId])
   @@map("user")

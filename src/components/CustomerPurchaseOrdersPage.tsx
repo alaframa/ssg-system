@@ -1,8 +1,8 @@
 "use client";
 
-// src/components/PurchaseOrdersPage.tsx
-// Sprint 3 — Purchase Orders (SSG → Customer)
-// Flow: Create PO → Confirm → Issue DOs against it
+// src/components/CustomerPurchaseOrdersPage.tsx
+// Customer POs — orders placed BY customers TO SSG
+// Flow: Customer orders (WA/phone/walk-in) → Create CPO → Issue DOs against it
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
@@ -15,12 +15,23 @@ type PoStatus =
   | "PARTIALLY_RECEIVED"
   | "COMPLETED"
   | "CANCELLED";
+type OrderChannel = "WHATSAPP" | "PHONE" | "WALK_IN" | "SALES_VISIT";
 
 const CYL_LABELS: Record<CylSize, string> = {
   KG3: "3 kg",
   KG5_5: "5.5 kg",
   KG12: "12 kg",
   KG50: "50 kg",
+};
+
+const CHANNEL_CFG: Record<
+  OrderChannel,
+  { label: string; icon: string; color: string }
+> = {
+  WHATSAPP: { label: "WhatsApp", icon: "💬", color: "#15803D" },
+  PHONE: { label: "Phone", icon: "📞", color: "#2563EB" },
+  WALK_IN: { label: "Walk-in", icon: "🚶", color: "#7C3AED" },
+  SALES_VISIT: { label: "Sales Visit", icon: "🤝", color: "#D97706" },
 };
 
 const STATUS_CFG: Record<
@@ -55,31 +66,27 @@ const STATUS_CFG: Record<
   },
 };
 
-interface Branch {
+interface Customer {
   id: string;
   code: string;
   name: string;
+  phone: string | null;
 }
-interface Supplier {
-  id: string;
-  code: string;
-  name: string;
-}
-interface PoRow {
+interface CpoRow {
   id: string;
   poNumber: string;
   poDate: string;
   cylinderSize: CylSize;
   orderedQty: number;
   confirmedQty: number;
-  receivedQty: number;
+  fulfilledQty: number;
   pricePerUnit: string;
   status: PoStatus;
+  orderChannel: OrderChannel;
   notes: string | null;
-  branch: Branch;
-  supplier: Supplier;
+  customer: Customer;
   createdBy: { name: string };
-  _count: { inboundReceivings: number };
+  _count: { deliveryOrders: number };
 }
 interface DoRow {
   id: string;
@@ -88,13 +95,8 @@ interface DoRow {
   cylinderSize: CylSize;
   orderedQty: number;
   deliveredQty: number;
-  pricePerUnit: string;
   status: string;
   driverName: string | null;
-  vehicleNo: string | null;
-  notes: string | null;
-  customer: { id: string; code: string; name: string };
-  createdBy: { name: string };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -106,7 +108,12 @@ const fmtIDR = (v: string | number) =>
     maximumFractionDigits: 0,
   }).format(Number(v));
 const today = () => new Date().toISOString().slice(0, 10);
+const genPoNumber = () => {
+  const d = new Date();
+  return `CPO-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(d.getTime()).slice(-4)}`;
+};
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: PoStatus }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.DRAFT;
   return (
@@ -125,6 +132,28 @@ function StatusBadge({ status }: { status: PoStatus }) {
       }}
     >
       {cfg.label}
+    </span>
+  );
+}
+
+function ChannelBadge({ channel }: { channel: OrderChannel }) {
+  const cfg = CHANNEL_CFG[channel] ?? CHANNEL_CFG.WHATSAPP;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 7px",
+        borderRadius: 4,
+        fontSize: 10,
+        fontWeight: 600,
+        color: cfg.color,
+        background: `${cfg.color}15`,
+        border: `1px solid ${cfg.color}30`,
+      }}
+    >
+      {cfg.icon} {cfg.label}
     </span>
   );
 }
@@ -174,37 +203,32 @@ function FormField({
   );
 }
 
-// ─── Create PO Form ───────────────────────────────────────────────────────────
-function CreatePoForm({
+// ─── Create CPO Form ──────────────────────────────────────────────────────────
+function CreateCpoForm({
   branchId,
-  supplier,
   onClose,
   onSaved,
 }: {
   branchId: string;
-  supplier: Supplier;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [customers, setCustomers] = useState<
-    { id: string; code: string; name: string }[]
-  >([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [custLoading, setCustLoading] = useState(true);
-
   const [form, setForm] = useState({
-    poNumber: `PO-${Date.now()}`,
+    customerId: "",
+    poNumber: genPoNumber(),
     poDate: today(),
     cylinderSize: "KG12" as CylSize,
     orderedQty: "",
     pricePerUnit: "175500",
-    customerId: "",
+    orderChannel: "WHATSAPP" as OrderChannel,
     notes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Load customers for this branch
   useEffect(() => {
     setCustLoading(true);
     fetch(`/api/customers?branch=${branchId}&limit=500&isActive=true`)
@@ -213,7 +237,7 @@ function CreatePoForm({
       .finally(() => setCustLoading(false));
   }, [branchId]);
 
-  // Auto price by size
+  // Auto price by cylinder size
   useEffect(() => {
     const prices: Record<CylSize, string> = {
       KG3: "52500",
@@ -228,14 +252,12 @@ function CreatePoForm({
     setSaving(true);
     setErrors({});
     try {
-      const res = await fetch("/api/purchase-orders", {
+      const res = await fetch("/api/customer-pos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           branchId,
-          supplierId: supplier.id,
-          customerId: form.customerId,
           orderedQty: Number(form.orderedQty),
           pricePerUnit: Number(form.pricePerUnit),
         }),
@@ -251,6 +273,8 @@ function CreatePoForm({
     }
   }
 
+  const selectedCust = customers.find((c) => c.id === form.customerId);
+
   return (
     <div
       style={{
@@ -259,6 +283,7 @@ function CreatePoForm({
         borderRadius: "var(--radius-md)",
         padding: 24,
         marginBottom: 24,
+        boxShadow: "var(--shadow-md)",
       }}
     >
       {/* Header */}
@@ -270,8 +295,15 @@ function CreatePoForm({
           marginBottom: 20,
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)" }}>
-          New Purchase Order
+        <div>
+          <div
+            style={{ fontSize: 15, fontWeight: 700, color: "var(--text-hi)" }}
+          >
+            New Customer Order
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-low)", marginTop: 2 }}>
+            Record order received from customer
+          </div>
         </div>
         <button
           onClick={onClose}
@@ -288,22 +320,46 @@ function CreatePoForm({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* Supplier — read-only display */}
-        <div
-          style={{
-            background: "rgba(37,99,235,0.04)",
-            border: "1px solid rgba(37,99,235,0.2)",
-            borderRadius: "var(--radius-sm)",
-            padding: "10px 14px",
-            fontSize: 13,
-            color: "var(--text-mid)",
-          }}
-        >
-          <span style={{ fontWeight: 700, color: "var(--accent)" }}>
-            Supplier:
-          </span>{" "}
-          {supplier.name}{" "}
-          <span style={{ opacity: 0.5 }}>({supplier.code})</span>
+        {/* Order Channel */}
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--text-mid)",
+              marginBottom: 8,
+            }}
+          >
+            Order Channel *
+          </label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(
+              Object.entries(CHANNEL_CFG) as [
+                OrderChannel,
+                (typeof CHANNEL_CFG)[OrderChannel],
+              ][]
+            ).map(([k, v]) => (
+              <button
+                key={k}
+                onClick={() => set("orderChannel", k)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: `1.5px solid ${form.orderChannel === k ? v.color : "var(--border)"}`,
+                  background:
+                    form.orderChannel === k ? `${v.color}15` : "var(--bg)",
+                  color: form.orderChannel === k ? v.color : "var(--text-mid)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {v.icon} {v.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Customer */}
@@ -334,6 +390,22 @@ function CreatePoForm({
           )}
         </FormField>
 
+        {/* Customer phone hint */}
+        {selectedCust?.phone && (
+          <div
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-sm)",
+              fontSize: 12,
+              color: "#15803D",
+              background: "rgba(21,128,61,0.06)",
+              border: "1px solid rgba(21,128,61,0.2)",
+            }}
+          >
+            📱 {selectedCust.phone}
+          </div>
+        )}
+
         {/* PO Number + Date */}
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
@@ -345,7 +417,7 @@ function CreatePoForm({
               style={fieldStyle}
             />
           </FormField>
-          <FormField label="PO Date *" error={errors.poDate}>
+          <FormField label="Order Date *" error={errors.poDate}>
             <input
               type="date"
               value={form.poDate}
@@ -362,18 +434,13 @@ function CreatePoForm({
             onChange={(e) => set("cylinderSize", e.target.value as CylSize)}
             style={fieldStyle}
           >
-            {(
-              Object.entries({
-                KG3: "3 kg",
-                KG5_5: "5.5 kg",
-                KG12: "12 kg",
-                KG50: "50 kg",
-              }) as [CylSize, string][]
-            ).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
+            {(Object.entries(CYL_LABELS) as [CylSize, string][]).map(
+              ([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ),
+            )}
           </select>
         </FormField>
 
@@ -385,10 +452,10 @@ function CreatePoForm({
             <input
               type="number"
               min={1}
+              placeholder="e.g. 20"
               value={form.orderedQty}
               onChange={(e) => set("orderedQty", e.target.value)}
               style={fieldStyle}
-              placeholder="e.g. 50"
             />
           </FormField>
           <FormField label="Price / Unit (Rp) *" error={errors.pricePerUnit}>
@@ -402,14 +469,32 @@ function CreatePoForm({
           </FormField>
         </div>
 
+        {/* Value preview */}
+        {form.orderedQty && form.pricePerUnit && (
+          <div
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-sm)",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--accent)",
+              background: "var(--accent-bg)",
+              border: "1px solid var(--accent-border)",
+            }}
+          >
+            Order value:{" "}
+            {fmtIDR(Number(form.orderedQty) * Number(form.pricePerUnit))}
+          </div>
+        )}
+
         {/* Notes */}
         <FormField label="Notes" error={errors.notes}>
           <textarea
             value={form.notes}
             onChange={(e) => set("notes", e.target.value)}
             rows={2}
+            placeholder="e.g. Customer requested delivery before 10am"
             style={{ ...fieldStyle, resize: "vertical" }}
-            placeholder="Optional — e.g. order via WhatsApp"
           />
         </FormField>
 
@@ -423,14 +508,14 @@ function CreatePoForm({
             display: "flex",
             justifyContent: "flex-end",
             gap: 10,
-            marginTop: 6,
+            marginTop: 4,
           }}
         >
           <button className="btn-gho" onClick={onClose} disabled={saving}>
             Cancel
           </button>
           <button className="btn-pri" onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : "Create PO"}
+            {saving ? "Saving…" : "Create Order"}
           </button>
         </div>
       </div>
@@ -438,13 +523,13 @@ function CreatePoForm({
   );
 }
 
-// ─── PO Detail Panel ──────────────────────────────────────────────────────────
-function PoDetailPanel({
+// ─── CPO Detail Panel ─────────────────────────────────────────────────────────
+function CpoDetailPanel({
   po,
   onClose,
   onRefresh,
 }: {
-  po: PoRow;
+  po: CpoRow;
   onClose: () => void;
   onRefresh: () => void;
 }) {
@@ -454,7 +539,7 @@ function PoDetailPanel({
 
   useEffect(() => {
     setDosLoading(true);
-    fetch(`/api/delivery-orders?poId=${po.id}&limit=100`)
+    fetch(`/api/delivery-orders?customerPoId=${po.id}&limit=100`)
       .then((r) => r.json())
       .then((d) => setDos(d.rows ?? []))
       .finally(() => setDosLoading(false));
@@ -462,7 +547,7 @@ function PoDetailPanel({
 
   async function updateStatus(status: PoStatus) {
     setUpdatingStatus(true);
-    await fetch(`/api/purchase-orders/${po.id}`, {
+    await fetch(`/api/customer-pos/${po.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -472,8 +557,9 @@ function PoDetailPanel({
   }
 
   const totalValue = Number(po.orderedQty) * Number(po.pricePerUnit);
-  const doCount = dos.length;
-  const deliveredTotal = dos.reduce((s, d) => s + d.deliveredQty, 0);
+  const pct =
+    po.orderedQty > 0 ? Math.round((po.fulfilledQty / po.orderedQty) * 100) : 0;
+  const ch = CHANNEL_CFG[po.orderChannel] ?? CHANNEL_CFG.WHATSAPP;
 
   const DO_STATUS_CFG: Record<string, { label: string; color: string }> = {
     PENDING: { label: "Pending", color: "#D97706" },
@@ -490,6 +576,7 @@ function PoDetailPanel({
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",
         overflow: "hidden",
+        marginBottom: 24,
       }}
     >
       {/* Header */}
@@ -505,14 +592,14 @@ function PoDetailPanel({
         <div>
           <div
             style={{
-              fontSize: 11,
+              fontSize: 10,
               color: "var(--text-low)",
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
             }}
           >
-            Purchase Order
+            Customer Order
           </div>
           <div
             style={{
@@ -520,12 +607,21 @@ function PoDetailPanel({
               fontWeight: 900,
               color: "var(--sidebar)",
               letterSpacing: "-0.02em",
+              marginTop: 2,
             }}
           >
             {po.poNumber}
           </div>
-          <div style={{ marginTop: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              marginTop: 6,
+              alignItems: "center",
+            }}
+          >
             <StatusBadge status={po.status} />
+            <ChannelBadge channel={po.orderChannel} />
           </div>
         </div>
         <button
@@ -542,7 +638,7 @@ function PoDetailPanel({
         </button>
       </div>
 
-      {/* Meta */}
+      {/* Meta grid */}
       <div
         style={{
           padding: "16px 20px",
@@ -554,13 +650,15 @@ function PoDetailPanel({
       >
         {[
           ["Date", new Date(po.poDate).toLocaleDateString("id-ID")],
-          ["Branch", po.branch.name],
+          ["Customer", `${po.customer.name} (${po.customer.code})`],
+          ["Phone", po.customer.phone ?? "—"],
           ["Cylinder", CYL_LABELS[po.cylinderSize]],
           ["Ordered", fmt(po.orderedQty) + " units"],
+          ["Fulfilled", fmt(po.fulfilledQty) + " / " + fmt(po.orderedQty)],
           ["Price/Unit", fmtIDR(po.pricePerUnit)],
           ["Total Value", fmtIDR(totalValue)],
-          ["DOs Issued", doCount + " delivery order(s)"],
-          ["Delivered", fmt(deliveredTotal) + " / " + fmt(po.orderedQty)],
+          ["DOs Issued", po._count.deliveryOrders + " order(s)"],
+          ["Created by", po.createdBy.name],
         ].map(([k, v]) => (
           <div key={k as string}>
             <div
@@ -588,6 +686,65 @@ function PoDetailPanel({
         ))}
       </div>
 
+      {/* Fulfillment progress bar */}
+      {po.orderedQty > 0 && (
+        <div
+          style={{
+            padding: "12px 20px",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--text-mid)",
+              marginBottom: 6,
+            }}
+          >
+            <span>Fulfillment Progress</span>
+            <span style={{ color: pct === 100 ? "#15803D" : "var(--accent)" }}>
+              {pct}%
+            </span>
+          </div>
+          <div
+            style={{
+              height: 6,
+              background: "var(--border)",
+              borderRadius: 99,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 99,
+                transition: "width 0.4s",
+                background: pct === 100 ? "#15803D" : "var(--accent)",
+                width: `${pct}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      {po.notes && (
+        <div
+          style={{
+            padding: "10px 20px",
+            borderBottom: "1px solid var(--border)",
+            fontSize: 12,
+            color: "var(--text-mid)",
+            fontStyle: "italic",
+          }}
+        >
+          📝 {po.notes}
+        </div>
+      )}
+
       {/* Status actions */}
       {po.status !== "COMPLETED" && po.status !== "CANCELLED" && (
         <div
@@ -599,60 +756,55 @@ function PoDetailPanel({
             flexWrap: "wrap",
           }}
         >
-          <span
-            style={{
-              fontSize: 11,
-              color: "var(--text-low)",
-              alignSelf: "center",
-              fontWeight: 600,
-            }}
-          >
-            Update status:
-          </span>
-          {po.status === "DRAFT" && (
-            <button
-              className="btn-gho"
-              onClick={() => updateStatus("SUBMITTED")}
-              disabled={updatingStatus}
-            >
-              → Submit
-            </button>
-          )}
           {po.status === "SUBMITTED" && (
             <button
               className="btn-pri"
               onClick={() => updateStatus("CONFIRMED")}
               disabled={updatingStatus}
+              style={{ fontSize: 12 }}
             >
-              ✓ Confirm
+              ✓ Confirm Order
             </button>
           )}
-          {po.status !== "CANCELLED" && (
+          {(po.status === "CONFIRMED" ||
+            po.status === "PARTIALLY_RECEIVED") && (
             <button
-              className="btn-gho"
-              style={{ color: "var(--danger)" }}
-              onClick={() => updateStatus("CANCELLED")}
+              className="btn-pri"
+              onClick={() => updateStatus("COMPLETED")}
               disabled={updatingStatus}
+              style={{ fontSize: 12, background: "#15803D" }}
             >
-              ✕ Cancel
+              ✓ Mark Completed
             </button>
           )}
+          <button
+            className="btn-gho"
+            onClick={() => updateStatus("CANCELLED")}
+            disabled={updatingStatus}
+            style={{
+              fontSize: 12,
+              color: "var(--danger)",
+              borderColor: "var(--danger)",
+            }}
+          >
+            Cancel Order
+          </button>
         </div>
       )}
 
-      {/* Delivery Orders */}
-      <div style={{ padding: "16px 20px" }}>
+      {/* Linked DOs */}
+      <div style={{ padding: "14px 20px" }}>
         <div
           style={{
             fontSize: 11,
             fontWeight: 700,
+            color: "var(--text-low)",
             textTransform: "uppercase",
             letterSpacing: "0.08em",
-            color: "var(--text-low)",
-            marginBottom: 12,
+            marginBottom: 10,
           }}
         >
-          Delivery Orders ({doCount})
+          Delivery Orders ({dos.length})
         </div>
         {dosLoading ? (
           <div style={{ color: "var(--text-low)", fontSize: 13 }}>Loading…</div>
@@ -664,7 +816,7 @@ function PoDetailPanel({
               fontStyle: "italic",
             }}
           >
-            No delivery orders issued yet.
+            No delivery orders issued yet. Go to Delivery Orders to create one.
           </div>
         ) : (
           <table
@@ -675,7 +827,6 @@ function PoDetailPanel({
                 {[
                   "DO #",
                   "Date",
-                  "Customer",
                   "Size",
                   "Qty",
                   "Delivered",
@@ -727,11 +878,6 @@ function PoDetailPanel({
                       {new Date(d.doDate).toLocaleDateString("id-ID")}
                     </td>
                     <td
-                      style={{ padding: "8px 10px", color: "var(--text-hi)" }}
-                    >
-                      {d.customer.name}
-                    </td>
-                    <td
                       style={{ padding: "8px 10px", color: "var(--text-mid)" }}
                     >
                       {CYL_LABELS[d.cylinderSize]}
@@ -742,6 +888,7 @@ function PoDetailPanel({
                         padding: "8px 10px",
                         color:
                           d.deliveredQty > 0 ? "#15803D" : "var(--text-low)",
+                        fontWeight: d.deliveredQty > 0 ? 700 : 400,
                       }}
                     >
                       {fmt(d.deliveredQty)}
@@ -770,49 +917,41 @@ function PoDetailPanel({
           </table>
         )}
       </div>
-      {po.notes && (
-        <div
-          style={{
-            padding: "0 20px 16px",
-            fontSize: 12,
-            color: "var(--text-mid)",
-            fontStyle: "italic",
-          }}
-        >
-          Notes: {po.notes}
-        </div>
-      )}
     </div>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function PurchaseOrdersPage({
+export default function CustomerPurchaseOrdersPage({
   activeBranchId,
 }: {
   activeBranchId: string;
 }) {
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [branchId, setBranchId] = useState(activeBranchId);
-  const [rows, setRows] = useState<PoRow[]>([]);
+  const [branches, setBranches] = useState<
+    { id: string; code: string; name: string }[]
+  >([]);
+  const [rows, setRows] = useState<CpoRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [selected, setSelected] = useState<PoRow | null>(null);
+  const [selected, setSelected] = useState<CpoRow | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync branch from parent
   useEffect(() => {
-    Promise.all([
-      fetch("/api/branches").then((r) => r.json()),
-      fetch("/api/suppliers").then((r) => r.json()),
-    ]).then(([brs, sups]) => {
-      setBranches(brs);
-      if (sups.length) setSupplier(sups[0]);
-    });
+    setBranchId(activeBranchId);
+  }, [activeBranchId]);
+
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then(setBranches)
+      .catch(() => {});
   }, []);
 
   const load = useCallback(
@@ -820,6 +959,7 @@ export default function PurchaseOrdersPage({
       branchId: string;
       search: string;
       status: string;
+      channel: string;
       page: number;
     }) => {
       setLoading(true);
@@ -831,7 +971,8 @@ export default function PurchaseOrdersPage({
           limit: "20",
         });
         if (opts.status) q.set("status", opts.status);
-        const data = await fetch(`/api/purchase-orders?${q}`).then((r) =>
+        if (opts.channel) q.set("channel", opts.channel);
+        const data = await fetch(`/api/customer-pos?${q}`).then((r) =>
           r.json(),
         );
         setRows(data.rows ?? []);
@@ -845,128 +986,226 @@ export default function PurchaseOrdersPage({
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(
-      () => load({ branchId, search, status: statusFilter, page }),
-      250,
-    );
-  }, [branchId, search, statusFilter, page, load]);
-
-  // Sync activeBranchId prop
-  useEffect(() => {
-    setBranchId(activeBranchId);
-  }, [activeBranchId]);
+    debounce.current = setTimeout(() => {
+      load({
+        branchId,
+        search,
+        status: statusFilter,
+        channel: channelFilter,
+        page,
+      });
+    }, 250);
+  }, [branchId, search, statusFilter, channelFilter, page, load]);
 
   const pages = Math.ceil(total / 20);
 
+  // Summary counts
+  const submitted = rows.filter((r) => r.status === "SUBMITTED").length;
+  const confirmed = rows.filter((r) => r.status === "CONFIRMED").length;
+  const partial = rows.filter((r) => r.status === "PARTIALLY_RECEIVED").length;
+
   return (
-    <div style={{ fontFamily: "var(--font-sans)" }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "var(--text-low)",
-            marginBottom: 4,
-            display: "flex",
-            gap: 6,
-          }}
-        >
-          <span>SSG</span>
-          <span>›</span>
-          <span style={{ color: "var(--accent)" }}>PURCHASE ORDERS</span>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 26,
-                fontWeight: 900,
-                color: "var(--sidebar)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1,
-              }}
-            >
-              Purchase Orders
-            </div>
-            <div
-              style={{ fontSize: 11, color: "var(--text-mid)", marginTop: 4 }}
-            >
-              SSG → Customer · Create PO · Issue DOs
-            </div>
+    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
+      {/* Page header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          marginBottom: 24,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: "var(--text-low)",
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              marginBottom: 4,
+            }}
+          >
+            SSG › Customer Orders
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <select
-              value={branchId}
-              onChange={(e) => {
-                setBranchId(e.target.value);
-                setPage(1);
-              }}
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--card)",
-                color: "var(--accent)",
-                fontFamily: "var(--font-sans)",
-                fontSize: 13,
-                fontWeight: 600,
-                padding: "6px 10px",
-                outline: "none",
-              }}
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            <button
-              className="btn-pri"
-              onClick={() => {
-                setShowForm(true);
-                setSelected(null);
-              }}
-            >
-              + New PO
-            </button>
-          </div>
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 900,
+              color: "var(--sidebar)",
+              margin: 0,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Customer Purchase Orders
+          </h1>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--text-low)",
+              margin: "4px 0 0",
+              fontStyle: "italic",
+            }}
+          >
+            Orders received from customers via WhatsApp, phone, walk-in, or
+            sales visit
+          </p>
         </div>
+        <button
+          className="btn-pri"
+          onClick={() => {
+            setShowForm(true);
+            setSelected(null);
+          }}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          + New Order
+        </button>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+      {/* Summary pills */}
+      {submitted + confirmed + partial > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginBottom: 20,
+            flexWrap: "wrap",
+          }}
+        >
+          {submitted > 0 && (
+            <div
+              style={{
+                padding: "6px 14px",
+                borderRadius: 99,
+                background: "rgba(217,119,6,0.1)",
+                border: "1px solid rgba(217,119,6,0.2)",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#D97706",
+              }}
+            >
+              {submitted} awaiting confirmation
+            </div>
+          )}
+          {confirmed > 0 && (
+            <div
+              style={{
+                padding: "6px 14px",
+                borderRadius: 99,
+                background: "var(--accent-bg)",
+                border: "1px solid var(--accent-border)",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--accent)",
+              }}
+            >
+              {confirmed} confirmed — ready to dispatch
+            </div>
+          )}
+          {partial > 0 && (
+            <div
+              style={{
+                padding: "6px 14px",
+                borderRadius: 99,
+                background: "rgba(124,58,237,0.1)",
+                border: "1px solid rgba(124,58,237,0.2)",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#7C3AED",
+              }}
+            >
+              {partial} partially fulfilled
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          marginBottom: 16,
+          flexWrap: "wrap",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md)",
+          padding: "12px 16px",
+        }}
+      >
+        {/* Branch */}
+        <select
+          value={branchId}
+          onChange={(e) => {
+            setBranchId(e.target.value);
+            setPage(1);
+          }}
+          style={{ ...fieldStyle, maxWidth: 160 }}
+        >
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Search */}
         <input
-          placeholder="Search PO number…"
+          placeholder="Search PO #, customer…"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
             setPage(1);
           }}
-          style={{ ...fieldStyle, maxWidth: 260 }}
+          style={{ ...fieldStyle, maxWidth: 220 }}
         />
+
+        {/* Status filter */}
         <select
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          style={{ ...fieldStyle, maxWidth: 160 }}
+          style={{ ...fieldStyle, maxWidth: 150 }}
         >
           <option value="">All Statuses</option>
-          {(Object.keys(STATUS_CFG) as PoStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {STATUS_CFG[s].label}
+          {(
+            Object.entries(STATUS_CFG) as [
+              PoStatus,
+              (typeof STATUS_CFG)[PoStatus],
+            ][]
+          ).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v.label}
             </option>
           ))}
         </select>
+
+        {/* Channel filter */}
+        <select
+          value={channelFilter}
+          onChange={(e) => {
+            setChannelFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ ...fieldStyle, maxWidth: 150 }}
+        >
+          <option value="">All Channels</option>
+          {(
+            Object.entries(CHANNEL_CFG) as [
+              OrderChannel,
+              (typeof CHANNEL_CFG)[OrderChannel],
+            ][]
+          ).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v.icon} {v.label}
+            </option>
+          ))}
+        </select>
+
         <div
           style={{
             marginLeft: "auto",
@@ -980,33 +1219,41 @@ export default function PurchaseOrdersPage({
       </div>
 
       {/* Create form */}
-      {showForm && supplier && (
-        <CreatePoForm
+      {showForm && (
+        <CreateCpoForm
           branchId={branchId}
-          supplier={supplier}
           onClose={() => setShowForm(false)}
           onSaved={() => {
             setShowForm(false);
-            load({ branchId, search, status: statusFilter, page });
+            load({
+              branchId,
+              search,
+              status: statusFilter,
+              channel: channelFilter,
+              page,
+            });
           }}
         />
       )}
 
       {/* Detail panel */}
       {selected && (
-        <div style={{ marginBottom: 24 }}>
-          <PoDetailPanel
-            po={selected}
-            onClose={() => setSelected(null)}
-            onRefresh={() => {
-              load({ branchId, search, status: statusFilter, page });
-              // Refresh selected
-              fetch(`/api/purchase-orders/${selected.id}`)
-                .then((r) => r.json())
-                .then(setSelected);
-            }}
-          />
-        </div>
+        <CpoDetailPanel
+          po={selected}
+          onClose={() => setSelected(null)}
+          onRefresh={() => {
+            load({
+              branchId,
+              search,
+              status: statusFilter,
+              channel: channelFilter,
+              page,
+            });
+            fetch(`/api/customer-pos/${selected.id}`)
+              .then((r) => r.json())
+              .then(setSelected);
+          }}
+        />
       )}
 
       {/* Table */}
@@ -1031,11 +1278,12 @@ export default function PurchaseOrdersPage({
               {[
                 "PO Number",
                 "Date",
+                "Customer",
+                "Channel",
                 "Size",
                 "Ordered",
-                "Delivered",
+                "Fulfilled",
                 "Value",
-                "DOs",
                 "Status",
                 "",
               ].map((h) => (
@@ -1060,7 +1308,7 @@ export default function PurchaseOrdersPage({
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                  {Array.from({ length: 9 }).map((_, j) => (
+                  {Array.from({ length: 10 }).map((_, j) => (
                     <td key={j} style={{ padding: "12px 14px" }}>
                       <div
                         style={{
@@ -1078,7 +1326,7 @@ export default function PurchaseOrdersPage({
             ) : rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   style={{
                     padding: "60px 0",
                     textAlign: "center",
@@ -1086,100 +1334,161 @@ export default function PurchaseOrdersPage({
                     fontSize: 13,
                   }}
                 >
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>No
-                  purchase orders yet.
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                  No customer orders yet.{" "}
+                  <span
+                    style={{
+                      color: "var(--accent)",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                    onClick={() => setShowForm(true)}
+                  >
+                    Create one
+                  </span>
                 </td>
               </tr>
             ) : (
-              rows.map((r) => (
-                <tr
-                  key={r.id}
-                  style={{
-                    borderBottom: "1px solid var(--border)",
-                    cursor: "pointer",
-                    background:
-                      selected?.id === r.id ? "rgba(37,99,235,0.04)" : "",
-                  }}
-                  onClick={() => setSelected(selected?.id === r.id ? null : r)}
-                  onMouseEnter={(e) => {
-                    if (selected?.id !== r.id)
-                      (e.currentTarget as HTMLElement).style.background =
-                        "var(--bg)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selected?.id !== r.id)
-                      (e.currentTarget as HTMLElement).style.background = "";
-                  }}
-                >
-                  <td
+              rows.map((r) => {
+                const pct =
+                  r.orderedQty > 0
+                    ? Math.round((r.fulfilledQty / r.orderedQty) * 100)
+                    : 0;
+                const ch = CHANNEL_CFG[r.orderChannel] ?? CHANNEL_CFG.WHATSAPP;
+                return (
+                  <tr
+                    key={r.id}
                     style={{
-                      padding: "11px 14px",
-                      fontWeight: 700,
-                      color: "var(--accent)",
-                      fontFamily: "monospace",
-                      fontSize: 12,
+                      borderBottom: "1px solid var(--border)",
+                      cursor: "pointer",
+                      background:
+                        selected?.id === r.id ? "rgba(37,99,235,0.04)" : "",
+                    }}
+                    onClick={() =>
+                      setSelected(selected?.id === r.id ? null : r)
+                    }
+                    onMouseEnter={(e) => {
+                      if (selected?.id !== r.id)
+                        (e.currentTarget as HTMLElement).style.background =
+                          "var(--bg)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selected?.id !== r.id)
+                        (e.currentTarget as HTMLElement).style.background = "";
                     }}
                   >
-                    {r.poNumber}
-                  </td>
-                  <td
-                    style={{ padding: "11px 14px", color: "var(--text-mid)" }}
-                  >
-                    {new Date(r.poDate).toLocaleDateString("id-ID")}
-                  </td>
-                  <td style={{ padding: "11px 14px" }}>
-                    {CYL_LABELS[r.cylinderSize]}
-                  </td>
-                  <td style={{ padding: "11px 14px", fontWeight: 600 }}>
-                    {fmt(r.orderedQty)}
-                  </td>
-                  <td
-                    style={{
-                      padding: "11px 14px",
-                      color: r.receivedQty > 0 ? "#15803D" : "var(--text-low)",
-                    }}
-                  >
-                    {fmt(r.receivedQty)}
-                  </td>
-                  <td
-                    style={{ padding: "11px 14px", color: "var(--text-mid)" }}
-                  >
-                    {fmtIDR(Number(r.pricePerUnit) * r.orderedQty)}
-                  </td>
-                  <td style={{ padding: "11px 14px" }}>
-                    <span
+                    <td
                       style={{
-                        background:
-                          r._count.inboundReceivings > 0
-                            ? "rgba(37,99,235,0.1)"
-                            : "var(--bg)",
-                        color:
-                          r._count.inboundReceivings > 0
-                            ? "var(--accent)"
-                            : "var(--text-low)",
-                        padding: "2px 8px",
-                        borderRadius: 12,
-                        fontSize: 11,
+                        padding: "11px 14px",
                         fontWeight: 700,
+                        color: "var(--accent)",
+                        fontFamily: "monospace",
+                        fontSize: 12,
                       }}
                     >
-                      {r._count.inboundReceivings}
-                    </span>
-                  </td>
-                  <td style={{ padding: "11px 14px" }}>
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td
-                    style={{
-                      padding: "11px 14px",
-                      color: "var(--text-low)",
-                      fontSize: 16,
-                    }}
-                  >
-                    {selected?.id === r.id ? "▲" : "▼"}
-                  </td>
-                </tr>
-              ))
+                      {r.poNumber}
+                    </td>
+                    <td
+                      style={{ padding: "11px 14px", color: "var(--text-mid)" }}
+                    >
+                      {new Date(r.poDate).toLocaleDateString("id-ID")}
+                    </td>
+                    <td style={{ padding: "11px 14px" }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          color: "var(--text-hi)",
+                          fontSize: 13,
+                        }}
+                      >
+                        {r.customer.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "var(--text-low)",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {r.customer.code}
+                      </div>
+                    </td>
+                    <td style={{ padding: "11px 14px" }}>
+                      <span style={{ fontSize: 13 }}>{ch.icon}</span>{" "}
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: ch.color,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {ch.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: "11px 14px" }}>
+                      {CYL_LABELS[r.cylinderSize]}
+                    </td>
+                    <td style={{ padding: "11px 14px", fontWeight: 600 }}>
+                      {fmt(r.orderedQty)}
+                    </td>
+                    <td style={{ padding: "11px 14px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 48,
+                            height: 4,
+                            background: "var(--border)",
+                            borderRadius: 99,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: "100%",
+                              background:
+                                pct === 100 ? "#15803D" : "var(--accent)",
+                              width: `${pct}%`,
+                              borderRadius: 99,
+                            }}
+                          />
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: pct === 100 ? "#15803D" : "var(--text-mid)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {fmt(r.fulfilledQty)}/{fmt(r.orderedQty)}
+                        </span>
+                      </div>
+                    </td>
+                    <td
+                      style={{ padding: "11px 14px", color: "var(--text-mid)" }}
+                    >
+                      {fmtIDR(Number(r.pricePerUnit) * r.orderedQty)}
+                    </td>
+                    <td style={{ padding: "11px 14px" }}>
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "11px 14px",
+                        color: "var(--text-low)",
+                        fontSize: 16,
+                      }}
+                    >
+                      {selected?.id === r.id ? "▲" : "▼"}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

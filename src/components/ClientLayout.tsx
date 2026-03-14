@@ -11,13 +11,16 @@ import SuppliersPage from "./SuppliersPage";
 import WarehousePage from "./WarehousePage";
 import PurchaseOrdersPage from "./PurchaseOrdersPage";
 import DeliveryOrdersPage from "./DeliveryOrdersPage";
+import CustomerPurchaseOrdersPage from "./CustomerPurchaseOrdersPage";
+
 import { ToastContainer, useToast } from "./Toast";
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: "📊" },
   { key: "customers", label: "Customers", icon: "👥" },
   { key: "suppliers", label: "Suppliers", icon: "🏬" },
-  { key: "po", label: "Purchase Orders", icon: "📝" },
+  { key: "customer-po", label: "Customer Orders", icon: "📋" },
+  { key: "po", label: "Supplier PO", icon: "📝" },
   { key: "delivery", label: "Delivery Orders", icon: "🚚" },
   { key: "warehouse", label: "Warehouse", icon: "📦" },
   { key: "gasback", label: "Gasback", icon: "♻️" },
@@ -162,6 +165,9 @@ export default function ClientLayout({
 
       case "delivery":
         return <DeliveryOrdersPage activeBranchId={activeBranchId} />;
+
+      case "customer-po":
+        return <CustomerPurchaseOrdersPage activeBranchId={activeBranchId} />;
 
       default:
         return (
